@@ -12,26 +12,19 @@ local hl = api.nvim_get_hl_id_by_name('Error')
 local cache = {}
 local active_bufs = {}
 
-local function del_extmarks(bufnr, lnum)
-  local ms = api.nvim_buf_get_extmarks(bufnr, ns, {lnum,0}, {lnum,-1}, {})
-  for _, m in ipairs(ms) do
-    api.nvim_buf_del_extmark(bufnr, ns, m[1])
-  end
-end
-
 local function add_extmark(bufnr, lnum, result)
   api.nvim_buf_set_extmark(bufnr, ns, lnum, result.pos, {
     end_line = lnum,
     end_col = result.pos+#result.word,
     hl_group = hl,
-    ephemeral = false,
+    ephemeral = true,
   })
 end
 
-local function spellcheck_line(bufnr, lnum)
+local function get_spellcheck_ranges(bufnr, lnum)
+  local r = {}
   local parser = get_parser(bufnr)
 
-  local spellcheck = false
   parser:for_each_tree(function(tstree, _)
     local root_node = tstree:root()
     local root_start_row, _, root_end_row, _ = root_node:range()
@@ -41,13 +34,31 @@ local function spellcheck_line(bufnr, lnum)
       return
     end
 
-    local stateiter = hl_query:iter_captures(root_node, bufnr, lnum, root_end_row)
-    local capture_id, _ = stateiter()
-    local capture = hl_query.captures[capture_id]
-    spellcheck = capture == 'comment'
+    local iter = hl_query:iter_captures(root_node, bufnr, lnum, lnum+1)
+    while true do
+      local capture_id, node = iter()
+      if capture_id == nil then
+        break
+      end
+      local capture = hl_query.captures[capture_id]
+      if capture == 'comment' then
+        local start_row, start_col, end_row, end_col = node:range()
+        if lnum ~= start_row then
+          start_col = 0
+        end
+        if lnum ~= end_row then
+          end_col = -1
+        end
+        table.insert(r, {start_col, end_col})
+      end
+    end
   end)
 
-  return spellcheck
+  if vim.tbl_isempty(r) then
+    return false
+  else
+    return r
+  end
 end
 
 local function process_output_line(line)
@@ -69,13 +80,17 @@ local function process_output_line(line)
   }
 end
 
-local function on_line(_, _, bufnr, lnum)
-  if not spellcheck_line(bufnr, lnum) then
-    return
+local function mask_ranges(line, ranges)
+  local r = {}
+  for _, range in ipairs(ranges) do
+    local scol, ecol = unpack(range)
+    local l = string.rep(' ', scol)..line:sub(scol+1, ecol+1)
+    table.insert(r, l)
   end
+  return r
+end
 
-  del_extmarks(bufnr, lnum)
-
+local function on_line(_, _, bufnr, lnum)
   local bcache = cache[bufnr]
 
   if bcache[lnum] then
@@ -84,22 +99,26 @@ local function on_line(_, _, bufnr, lnum)
     end
     return
   end
+  bcache[lnum] = {}
+
+  local ranges = get_spellcheck_ranges(bufnr, lnum)
+  if not ranges then
+    return
+  end
 
   local l = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
+
   Job:new {
     command = 'hunspell',
-    writer = {l},
+    writer = mask_ranges(l, ranges),
     on_stdout = function(_, line)
       local r = process_output_line(line)
-      if not bcache[lnum] then
-        bcache[lnum] = {}
-      end
-      table.insert(bcache[lnum], r)
       if not r then
         return
       end
+      table.insert(cache[bufnr][lnum], r)
       vim.schedule(function()
-        add_extmark(bufnr, lnum, r)
+        api.nvim__buf_redraw_range(bufnr, lnum, lnum+1)
       end)
     end,
   }:start()
@@ -151,9 +170,6 @@ end
 
 function M.setup()
   api.nvim_set_decoration_provider(ns, {
-    on_start = function(_, tick)
-      print('TICK: '..tick)
-    end,
     on_win = on_win,
     on_line = on_line;
   })
