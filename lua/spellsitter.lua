@@ -1,6 +1,7 @@
-local Job = require('plenary/job')
 local query = require'vim.treesitter.query'
 local get_parser = require'nvim-treesitter.parsers'.get_parser
+
+local job = require('spellsitter.job').job
 
 local api = vim.api
 
@@ -11,9 +12,12 @@ local hl_query
 local hl = api.nvim_get_hl_id_by_name('Error')
 local cache = {}
 local active_bufs = {}
+local job_count = 0
 
 local function add_extmark(bufnr, lnum, result)
-  api.nvim_buf_set_extmark(bufnr, ns, lnum, result.pos, {
+  -- TODO: This errors because of an out of bounds column when inserting
+  -- newlines. Wrapping in pcall hides the issue.
+  pcall(api.nvim_buf_set_extmark,bufnr, ns, lnum, result.pos, {
     end_line = lnum,
     end_col = result.pos+#result.word,
     hl_group = hl,
@@ -108,20 +112,22 @@ local function on_line(_, _, bufnr, lnum)
 
   local l = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
 
-  Job:new {
+  job_count = job_count + 1
+  job {
     command = 'hunspell',
-    writer = mask_ranges(l, ranges),
-    on_stdout = function(_, line)
-      local r = process_output_line(line)
-      if not r then
-        return
+    input_lines = mask_ranges(l, ranges),
+    on_stdout = function(out)
+      for _, line in ipairs(vim.split(out, '\n')) do
+        local r = process_output_line(line)
+        if r and cache[bufnr][lnum] then
+          table.insert(cache[bufnr][lnum], r)
+        end
       end
-      table.insert(cache[bufnr][lnum], r)
       vim.schedule(function()
         api.nvim__buf_redraw_range(bufnr, lnum, lnum+1)
       end)
-    end,
-  }:start()
+    end
+  }
 end
 
 local function invalidate_cache_lines(bufnr, first, last)
@@ -170,6 +176,9 @@ end
 
 function M.setup()
   api.nvim_set_decoration_provider(ns, {
+    -- on_start = function(_, tick)
+    --   print(('TICK: %s %s'):format(tick, job_count))
+    -- end,
     on_win = on_win,
     on_line = on_line;
   })
