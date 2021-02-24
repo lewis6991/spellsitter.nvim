@@ -76,6 +76,17 @@ describe('spellsitter', function()
                                     |
     ]]}
 
+    feed('G')
+
+    screen:expect{grid=[[
+      {1:// }{7:splling}{1: mistake}            |
+      {1:// spelling }{7:mstake}            |
+      {1:// }{7:splling}{1: mistake}            |
+      {1:^/* }{7:splll}{1: */} {6:int} {4:couunt}{5:()} {5:{}} {1:/*}|
+      {1: }{7:couunt}{1: }{7:funtion}{1: */}            |
+                                    |
+    ]]}
+
   end)
 
 end)
