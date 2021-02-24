@@ -14,6 +14,15 @@ Neovim >= 0.5.0
 
 ## Installation
 
+Firstly, make sure hunspell is installed (via `brew`, etc) and has dictionaries available to it.
+You should see this kind of output:
+
+```zsh
+> echo helo | hunspell
+Hunspell 1.7.0
+& helo 11 0: hole, help, helot, hello, halo, hero, hell, held, helm, he lo, he-lo
+```
+
 [packer.nvim](https://github.com/wbthomason/packer.nvim):
 ```lua
 use {
