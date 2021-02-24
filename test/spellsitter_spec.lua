@@ -49,7 +49,10 @@ describe('spellsitter', function()
   end)
 
   it('basic spellcheck', function()
-    exec_lua('require("spellsitter").setup()')
+    exec_lua([[require("spellsitter").setup{
+      hl = 'Error',
+      hunspell_args = {'-d', 'en_GB'},
+    }]])
 
     load_ts('test/dummy.c', 'c')
 

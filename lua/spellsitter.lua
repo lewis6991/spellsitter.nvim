@@ -7,9 +7,10 @@ local api = vim.api
 
 local M = {}
 
-local ns = api.nvim_create_namespace('spellsitter')
+local cfg
+
+local ns
 local hl_query
-local hl = api.nvim_get_hl_id_by_name('Error')
 local cache = {}
 local active_bufs = {}
 local job_count = 0
@@ -20,7 +21,7 @@ local function add_extmark(bufnr, lnum, result)
   local ok, _ = pcall(api.nvim_buf_set_extmark,bufnr, ns, lnum, result.pos, {
     end_line = lnum,
     end_col = result.pos+#result.word,
-    hl_group = hl,
+    hl_group = cfg.hl_id,
     ephemeral = true,
   })
 
@@ -42,15 +43,9 @@ local function get_spellcheck_ranges(bufnr, lnum)
       return
     end
 
-    local iter = hl_query:iter_captures(root_node, bufnr, lnum, lnum+1)
-    local capture_id, node -- = iter()
-    while true do
-      capture_id, node = iter()
-      if capture_id == nil then
-        break
-      end
-      local capture = hl_query.captures[capture_id]
-      if capture == 'comment' then
+    for id, node in hl_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
+      local capture = hl_query.captures[id]
+      if vim.tbl_contains(cfg.captures, capture) then
         local start_row, start_col, end_row, end_col = node:range()
         if lnum ~= start_row then
           start_col = 0
@@ -63,11 +58,7 @@ local function get_spellcheck_ranges(bufnr, lnum)
     end
   end)
 
-  if vim.tbl_isempty(r) then
-    return false
-  else
-    return r
-  end
+  return r
 end
 
 local function process_output_line(line)
@@ -111,7 +102,7 @@ local function on_line(_, _, bufnr, lnum)
   bcache[lnum] = {}
 
   local ranges = get_spellcheck_ranges(bufnr, lnum)
-  if not ranges then
+  if vim.tbl_isempty(ranges) then
     return
   end
 
@@ -119,7 +110,8 @@ local function on_line(_, _, bufnr, lnum)
 
   job_count = job_count + 1
   job {
-    command = 'hunspell',
+    command = cfg.hunspell_cmd,
+    args = cfg.hunspell_args,
     input_lines = mask_ranges(l, ranges),
     on_stdout = function(out)
       for _, line in ipairs(vim.split(out, '\n')) do
@@ -179,7 +171,16 @@ local function on_win(_, _, bufnr)
   end
 end
 
-function M.setup()
+function M.setup(cfg_)
+  cfg = cfg_ or {}
+  cfg.hl = cfg.hl or 'SpellBad'
+  cfg.hl_id = api.nvim_get_hl_id_by_name(cfg.hl)
+  cfg.captures = cfg.captures or {'comment'}
+  cfg.hunspell_cmd = cfg.hunspell_cmd or 'hunspell'
+  cfg.hunspell_args = cfg.hunspell_args or {}
+
+  ns = api.nvim_create_namespace('spellsitter')
+
   api.nvim_set_decoration_provider(ns, {
     on_win = on_win,
     on_line = on_line;

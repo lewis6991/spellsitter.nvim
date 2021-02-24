@@ -1,11 +1,12 @@
 # spellsitter.nvim
 
-Spell checker for Neovim powered by tree-sitter.
+Spell checker for Neovim powered by [tree-sitter](https://github.com/tree-sitter/tree-sitter)
+and [hunspell](http://hunspell.github.io/).
 
 ## Status
 **WIP**
 
-This plugin relies on Neovim's treesitter API which is still under development.
+This plugin relies on Neovim's tree-sitter API which is still under development.
 Expect things to break sometimes but please don't hesitate to raise an issue.
 
 ## Requirements
@@ -16,14 +17,22 @@ Neovim >= 0.5.0
 [packer.nvim](https://github.com/wbthomason/packer.nvim):
 ```lua
 use {
+  -- Optional but recommended
+  -- 'nvim-treesitter/nvim-treesitter',
   'lewis6991/spellsitter.nvim',
 }
 ```
 
 [vim-plug](https://github.com/junegunn/vim-plug):
 ```vim
+" Optional but recommended
+" Plug 'nvim-treesitter/nvim-treesitter'
 Plug 'lewis6991/spellsitter.nvim'
 ```
+
+Note: This plugin does not depend on
+[nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter)
+however it is recommended in order to easily install tree-sitter parsers.
 
 ## Usage
 
@@ -41,6 +50,18 @@ use {
   config = function()
     require('spellsitter').setup()
   end
+}
+```
+
+Configuration can be passed to the setup function. Here is an example with all
+the default settings:
+
+```lua
+require('spellsitter').setup {
+  hl = 'SpellBad',
+  captures = {'comment'},
+  hunspell_cmd = 'hunspell',
+  hunspell_args = {},
 }
 ```
 

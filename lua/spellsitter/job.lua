@@ -11,8 +11,10 @@ function M.job(spec)
   local handle
   handle, _ = uv.spawn(
     spec.command,
-    { args = {'-d', 'en_GB'},
-      stdio = { stdin, stdout, stderr } },
+    {
+      args = spec.args,
+      stdio = { stdin, stdout, stderr }
+    },
     function()
       stdout:read_stop()
       stdout:close()
