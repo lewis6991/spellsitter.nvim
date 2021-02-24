@@ -1,5 +1,5 @@
 local query = require'vim.treesitter.query'
-local get_parser = require'nvim-treesitter.parsers'.get_parser
+local get_parser = vim.treesitter.get_parser
 
 local job = require('spellsitter.job').job
 
@@ -17,12 +17,16 @@ local job_count = 0
 local function add_extmark(bufnr, lnum, result)
   -- TODO: This errors because of an out of bounds column when inserting
   -- newlines. Wrapping in pcall hides the issue.
-  pcall(api.nvim_buf_set_extmark,bufnr, ns, lnum, result.pos, {
+  local ok, _ = pcall(api.nvim_buf_set_extmark,bufnr, ns, lnum, result.pos, {
     end_line = lnum,
     end_col = result.pos+#result.word,
     hl_group = hl,
     ephemeral = true,
   })
+
+  if not ok then
+    print(('ERROR: Failed to add extmark, lnum=%d pos=%d'):format(lnum, result.pos))
+  end
 end
 
 local function get_spellcheck_ranges(bufnr, lnum)
@@ -39,8 +43,9 @@ local function get_spellcheck_ranges(bufnr, lnum)
     end
 
     local iter = hl_query:iter_captures(root_node, bufnr, lnum, lnum+1)
+    local capture_id, node -- = iter()
     while true do
-      local capture_id, node = iter()
+      capture_id, node = iter()
       if capture_id == nil then
         break
       end
@@ -130,12 +135,12 @@ local function on_line(_, _, bufnr, lnum)
   }
 end
 
-local function invalidate_cache_lines(bufnr, first, last)
+local function invalidate_cache_lines(bufnr, first)
   local bcache = cache[bufnr]
   if not bcache then
     return
   end
-  for i = first, last do
+  for i = first, #bcache do
     bcache[i] = nil
   end
 end
@@ -148,8 +153,8 @@ local function attach(cbuf)
   active_bufs[cbuf] = true
 
   api.nvim_buf_attach(cbuf, false, {
-    on_lines = function(_, bufnr, _, first, last)
-      invalidate_cache_lines(bufnr, first, last-1)
+    on_lines = function(_, bufnr, _, first, _)
+      invalidate_cache_lines(bufnr, first)
     end,
     on_detach = function(_, bufnr)
       active_bufs[bufnr] = nil
@@ -158,8 +163,8 @@ local function attach(cbuf)
 end
 
 local function on_win(_, _, bufnr)
-  local parser = get_parser(bufnr)
-  if not parser then
+  local ok, parser = pcall(get_parser, bufnr)
+  if not ok then
     return false
   end
 
@@ -176,9 +181,6 @@ end
 
 function M.setup()
   api.nvim_set_decoration_provider(ns, {
-    -- on_start = function(_, tick)
-    --   print(('TICK: %s %s'):format(tick, job_count))
-    -- end,
     on_win = on_win,
     on_line = on_line;
   })

@@ -5,15 +5,18 @@ local M = {}
 function M.job(spec)
   local stdin = uv.new_pipe(false)
   local stdout = uv.new_pipe(false)
+  local stderr = uv.new_pipe(false)
   local out = ''
 
   local handle
   handle, _ = uv.spawn(
     spec.command,
-    { stdio = { stdin, stdout } },
+    { args = {'-d', 'en_GB'},
+      stdio = { stdin, stdout, stderr } },
     function()
       stdout:read_stop()
       stdout:close()
+      stderr:close()
       handle:close()
       spec.on_stdout(out)
     end
@@ -23,6 +26,12 @@ function M.job(spec)
     assert(not err, err)
     if data then
       out = out .. data
+    end
+  end)
+
+  stderr:read_start(function(_, data)
+    if data then
+      print(vim.inspect(data))
     end
   end)
 
