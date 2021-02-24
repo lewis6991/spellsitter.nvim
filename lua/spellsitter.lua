@@ -15,6 +15,10 @@ local cache = {}
 local active_bufs = {}
 local job_count = 0
 
+local function use_ts()
+  return not vim.tbl_isempty(cfg.captures)
+end
+
 local function add_extmark(bufnr, lnum, result)
   -- TODO: This errors because of an out of bounds column when inserting
   -- newlines. Wrapping in pcall hides the issue.
@@ -101,18 +105,23 @@ local function on_line(_, _, bufnr, lnum)
   end
   bcache[lnum] = {}
 
-  local ranges = get_spellcheck_ranges(bufnr, lnum)
-  if vim.tbl_isempty(ranges) then
-    return
+  local lines
+  if use_ts() then
+    local ranges = get_spellcheck_ranges(bufnr, lnum)
+    if vim.tbl_isempty(ranges) then
+      return
+    end
+    local l = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
+    lines = mask_ranges(l, ranges)
+  else
+    lines = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)
   end
-
-  local l = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
 
   job_count = job_count + 1
   job {
     command = cfg.hunspell_cmd,
     args = cfg.hunspell_args,
-    input_lines = mask_ranges(l, ranges),
+    input_lines = lines,
     on_stdout = function(out)
       for _, line in ipairs(vim.split(out, '\n')) do
         local r = process_output_line(line)
@@ -155,16 +164,17 @@ local function attach(cbuf)
 end
 
 local function on_win(_, _, bufnr)
-  local ok, parser = pcall(get_parser, bufnr)
-  if not ok then
-    return false
+  if use_ts() then
+    local ok, parser = pcall(get_parser, bufnr)
+    if not ok then
+      return false
+    end
+    if not hl_query then
+      hl_query = query.get_query(parser:lang(), "highlights")
+    end
   end
 
   attach(bufnr)
-
-  if not hl_query then
-    hl_query = query.get_query(parser:lang(), "highlights")
-  end
 
   if not cache[bufnr] then
     cache[bufnr] = {}

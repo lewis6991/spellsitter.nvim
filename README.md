@@ -68,7 +68,7 @@ the default settings:
 ```lua
 require('spellsitter').setup {
   hl = 'SpellBad',
-  captures = {'comment'},
+  captures = {'comment'},  -- set to {} to spellcheck everything
   hunspell_cmd = 'hunspell',
   hunspell_args = {},
 }
