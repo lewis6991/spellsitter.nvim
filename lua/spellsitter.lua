@@ -19,12 +19,23 @@ local function use_ts()
   return not vim.tbl_isempty(cfg.captures)
 end
 
+local function get_col(bufnr, lnum, vcol)
+  -- #1: hunspell returns UTF-32 indices whereas nvim extmark  work with UTF-8
+  -- indices so we need to convert
+  -- TODO: This might have performance impacts so we may want to configure this.
+  local l = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
+  return vim.str_byteindex(l, vcol)
+end
+
 local function add_extmark(bufnr, lnum, result)
   -- TODO: This errors because of an out of bounds column when inserting
   -- newlines. Wrapping in pcall hides the issue.
-  local ok, _ = pcall(api.nvim_buf_set_extmark,bufnr, ns, lnum, result.pos, {
+
+  local col = get_col(bufnr, lnum, result.pos)
+
+  local ok, _ = pcall(api.nvim_buf_set_extmark, bufnr, ns, lnum, col, {
     end_line = lnum,
-    end_col = result.pos+#result.word,
+    end_col = col+#result.word,
     hl_group = cfg.hl_id,
     ephemeral = true,
   })
@@ -88,7 +99,7 @@ local function mask_ranges(line, ranges)
   local r = {}
   for _, range in ipairs(ranges) do
     local scol, ecol = unpack(range)
-    local l = string.rep(' ', scol)..line:sub(scol+1, ecol+1)
+    local l = string.rep(' ', scol)..line:sub(scol+1, ecol)
     table.insert(r, l)
   end
   return r
@@ -141,20 +152,23 @@ local function invalidate_cache_lines(bufnr, first)
   if not bcache then
     return
   end
-  for i = first, #bcache do
+  for i = first-1, api.nvim_buf_line_count(bufnr) do
     bcache[i] = nil
   end
 end
 
-local function attach(cbuf)
+local function attach(winid, cbuf)
   if active_bufs[cbuf] then
     -- Already attached
     return
   end
   active_bufs[cbuf] = true
 
+  -- Disable lagacy vim spellchecker
+  api.nvim_win_set_option(winid, 'spell', false)
+
   api.nvim_buf_attach(cbuf, false, {
-    on_lines = function(_, bufnr, _, first, _)
+    on_lines = function(_, bufnr, _, first)
       invalidate_cache_lines(bufnr, first)
     end,
     on_detach = function(_, bufnr)
@@ -163,7 +177,7 @@ local function attach(cbuf)
   })
 end
 
-local function on_win(_, _, bufnr)
+local function on_win(_, winid, bufnr)
   if use_ts() then
     local ok, parser = pcall(get_parser, bufnr)
     if not ok then
@@ -174,11 +188,31 @@ local function on_win(_, _, bufnr)
     end
   end
 
-  attach(bufnr)
+  attach(winid, bufnr)
 
   if not cache[bufnr] then
     cache[bufnr] = {}
   end
+end
+
+
+local function notify_error(msg)
+  api.nvim_notify('Error(spellsitter): '..msg, 4, {})
+end
+
+local function test_hunspell(on_success)
+  job {
+    command = cfg.hunspell_cmd,
+    args = cfg.hunspell_args,
+    on_stdout = vim.schedule_wrap(function(out)
+      local first = vim.split(out, '\n')[1]
+      if not vim.startswith(first, 'Hunspell') then
+        notify_error('hunspell is not setup correctly')
+      else
+        on_success()
+      end
+    end)
+  }
 end
 
 function M.setup(cfg_)
@@ -189,12 +223,14 @@ function M.setup(cfg_)
   cfg.hunspell_cmd = cfg.hunspell_cmd or 'hunspell'
   cfg.hunspell_args = cfg.hunspell_args or {}
 
-  ns = api.nvim_create_namespace('spellsitter')
+  test_hunspell(function()
+    ns = api.nvim_create_namespace('spellsitter')
 
-  api.nvim_set_decoration_provider(ns, {
-    on_win = on_win,
-    on_line = on_line;
-  })
+    api.nvim_set_decoration_provider(ns, {
+      on_win = on_win,
+      on_line = on_line;
+    })
+  end)
 end
 
 return M

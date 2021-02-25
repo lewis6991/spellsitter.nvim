@@ -39,6 +39,7 @@ describe('spellsitter', function()
       [5] = {foreground = Screen.colors.SlateBlue};
       [6] = {foreground = Screen.colors.SeaGreen4, bold = true};
       [7] = {background = Screen.colors.Red1, foreground = Screen.colors.Gray100};
+      [8] = {bold = true, foreground = Screen.colors.Blue};
     })
 
     exec_lua('package.path = ...', package.path)
@@ -87,6 +88,38 @@ describe('spellsitter', function()
                                     |
     ]]}
 
+  end)
+
+  it('detects bad hunspell', function()
+    screen:try_resize(80, 3)
+    exec_lua([[require("spellsitter").setup{
+      hl = 'Error',
+      hunspell_args = {'-d', 'rarrrr'},
+    }]])
+
+    screen:expect{grid=[[
+      stderr: "Can't open affix or dictionar...es for dictionary named \"rarrrr\".\n" |
+      {7:Error(spellsitter): hunspell is not setup correctly}                             |
+      {6:Press ENTER or type command to continue}^                                         |
+    ]]}
+
+    feed('<cr>')
+  end)
+
+  it('supports unicode', function()
+    screen:try_resize(80, 3)
+    exec_lua([[require("spellsitter").setup{
+      hl = 'Error',
+      hunspell_args = {'-d', 'en_GB'},
+    }]])
+
+    load_ts('test/unicode_chars.c', 'c')
+
+    screen:expect{grid=[[
+      {1:^// “So, }{7:Hermione}{1:, when you are going to look for your parents in Australia?”}    |
+      {8:~                                                                               }|
+                                                                                      |
+    ]]}
   end)
 
 end)
