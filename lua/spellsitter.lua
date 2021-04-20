@@ -27,8 +27,8 @@ size_t spell_check(
 
 local HLF_SPB = 30
 
-local function spell_check(text)
-  local w = ffi.C.find_window_by_handle(0, 0)
+local function spell_check(text, winid)
+  local w = ffi.C.find_window_by_handle(winid, 0)
   local capcol = ffi.new("int[1]", -1)
   local hlf = ffi.new("hlf_T[1]", 0)
   local sum = 0
@@ -111,7 +111,7 @@ local function mask_ranges(line, ranges)
   return r
 end
 
-local function on_line(_, _, bufnr, lnum)
+local function on_line(_, winid, bufnr, lnum)
   local lines
   if use_ts() then
     local ranges = get_spellcheck_ranges(bufnr, lnum)
@@ -125,7 +125,7 @@ local function on_line(_, _, bufnr, lnum)
   end
 
   for _, l in ipairs(lines) do
-    for col, len in spell_check(l) do
+    for col, len in spell_check(l, winid) do
       add_extmark(bufnr, lnum, col, len)
     end
   end
