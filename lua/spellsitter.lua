@@ -9,17 +9,20 @@ local cfg
 local ns
 
 local ffi = require("ffi")
-ffi.cdef[[
-typedef void win_T;
 
-win_T* find_window_by_handle(int window, int err);
+local function setup_spellcheck()
+  ffi.cdef[[
+  typedef void win_T;
 
-typedef int hlf_T;
+  win_T* find_window_by_handle(int window, int err);
 
-size_t spell_check(
-    win_T *wp, const char *ptr, hlf_T *attrp,
-    int *capcol, bool docount);
-]]
+  typedef int hlf_T;
+
+  size_t spell_check(
+      win_T *wp, const char *ptr, hlf_T *attrp,
+      int *capcol, bool docount);
+  ]]
+end
 
 local HLF_SPB = 30
 
@@ -153,6 +156,7 @@ function M.setup(cfg_)
 
   ns = api.nvim_create_namespace('spellsitter')
 
+  setup_spellcheck()
   api.nvim_set_decoration_provider(ns, {
     on_win = on_win,
     on_line = on_line,
