@@ -1,8 +1,6 @@
 local query = require'vim.treesitter.query'
 local get_parser = vim.treesitter.get_parser
 
-local job = require('spellsitter.job').job
-
 local api = vim.api
 
 local M = {}
@@ -13,35 +11,62 @@ local ns
 local hl_query
 local cache = {}
 local active_bufs = {}
-local job_count = 0
+
+local ffi = require("ffi")
+ffi.cdef[[
+typedef void win_T;
+
+win_T* find_window_by_handle(int window, int err);
+
+typedef int hlf_T;
+
+size_t spell_check(
+    win_T *wp, const char *ptr, hlf_T *attrp,
+    int *capcol, bool docount);
+]]
+
+local HLF_SPB = 30
+
+local function spell_check(text)
+  local w = ffi.C.find_window_by_handle(0, 0)
+  local capcol = ffi.new("int[1]", -1)
+  local hlf = ffi.new("hlf_T[1]", 0)
+  local sum = 0
+
+  return function()
+    while #text > 0 do
+      hlf[0] = 0
+
+      local len = tonumber(ffi.C.spell_check(w, text, hlf, capcol, false))
+      local rsum = sum
+
+      sum = sum + len
+      text = text:sub(len+1, -1)
+
+      if tonumber(hlf[0]) == HLF_SPB then
+        return rsum, len
+      end
+    end
+  end
+end
 
 local function use_ts()
   return not vim.tbl_isempty(cfg.captures)
 end
 
-local function get_col(bufnr, lnum, vcol)
-  -- #1: hunspell returns UTF-32 indices whereas nvim extmark  work with UTF-8
-  -- indices so we need to convert
-  -- TODO: This might have performance impacts so we may want to configure this.
-  local l = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
-  return vim.str_byteindex(l, vcol)
-end
-
-local function add_extmark(bufnr, lnum, result)
+local function add_extmark(bufnr, lnum, col, len)
   -- TODO: This errors because of an out of bounds column when inserting
   -- newlines. Wrapping in pcall hides the issue.
 
-  local col = get_col(bufnr, lnum, result.pos)
-
   local ok, _ = pcall(api.nvim_buf_set_extmark, bufnr, ns, lnum, col, {
     end_line = lnum,
-    end_col = col+#result.word,
+    end_col = col+len,
     hl_group = cfg.hl_id,
     ephemeral = true,
   })
 
   if not ok then
-    print(('ERROR: Failed to add extmark, lnum=%d pos=%d'):format(lnum, result.pos))
+    print(('ERROR: Failed to add extmark, lnum=%d pos=%d'):format(lnum, col))
   end
 end
 
@@ -76,25 +101,6 @@ local function get_spellcheck_ranges(bufnr, lnum)
   return r
 end
 
-local function process_output_line(line)
-  local parts = vim.split(line, '%s+')
-  local op = parts[1]
-  if op ~= '&' and op ~= '#' then
-    return
-  end
-  local word = parts[2]
-  local pos
-  if op == '&' then
-    pos = tonumber(parts[4]:sub(1, -2))
-  elseif op == '#' then
-    pos = tonumber(parts[3])
-  end
-  return {
-    word = word,
-    pos  = pos
-  }
-end
-
 local function mask_ranges(line, ranges)
   local r = {}
   for _, range in ipairs(ranges) do
@@ -106,16 +112,6 @@ local function mask_ranges(line, ranges)
 end
 
 local function on_line(_, _, bufnr, lnum)
-  local bcache = cache[bufnr]
-
-  if bcache[lnum] then
-    for _, r in ipairs(bcache[lnum]) do
-      add_extmark(bufnr, lnum, r)
-    end
-    return
-  end
-  bcache[lnum] = {}
-
   local lines
   if use_ts() then
     local ranges = get_spellcheck_ranges(bufnr, lnum)
@@ -128,23 +124,11 @@ local function on_line(_, _, bufnr, lnum)
     lines = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)
   end
 
-  job_count = job_count + 1
-  job {
-    command = cfg.hunspell_cmd,
-    args = cfg.hunspell_args,
-    input_lines = lines,
-    on_stdout = function(out)
-      for _, line in ipairs(vim.split(out, '\n')) do
-        local r = process_output_line(line)
-        if r and cache[bufnr][lnum] then
-          table.insert(cache[bufnr][lnum], r)
-        end
-      end
-      vim.schedule(function()
-        api.nvim__buf_redraw_range(bufnr, lnum, lnum+1)
-      end)
+  for _, l in ipairs(lines) do
+    for col, len in spell_check(l) do
+      add_extmark(bufnr, lnum, col, len)
     end
-  }
+  end
 end
 
 local function invalidate_cache_lines(bufnr, first)
@@ -195,42 +179,18 @@ local function on_win(_, winid, bufnr)
   end
 end
 
-
-local function notify_error(msg)
-  api.nvim_notify('Error(spellsitter): '..msg, 4, {})
-end
-
-local function test_hunspell(on_success)
-  job {
-    command = cfg.hunspell_cmd,
-    args = cfg.hunspell_args,
-    on_stdout = vim.schedule_wrap(function(out)
-      local first = vim.split(out, '\n')[1]
-      if not vim.startswith(first, 'Hunspell') then
-        notify_error('hunspell is not setup correctly')
-      else
-        on_success()
-      end
-    end)
-  }
-end
-
 function M.setup(cfg_)
   cfg = cfg_ or {}
   cfg.hl = cfg.hl or 'SpellBad'
   cfg.hl_id = api.nvim_get_hl_id_by_name(cfg.hl)
   cfg.captures = cfg.captures or {'comment'}
-  cfg.hunspell_cmd = cfg.hunspell_cmd or 'hunspell'
-  cfg.hunspell_args = cfg.hunspell_args or {}
 
-  test_hunspell(function()
-    ns = api.nvim_create_namespace('spellsitter')
+  ns = api.nvim_create_namespace('spellsitter')
 
-    api.nvim_set_decoration_provider(ns, {
-      on_win = on_win,
-      on_line = on_line;
-    })
-  end)
+  api.nvim_set_decoration_provider(ns, {
+    on_win = on_win,
+    on_line = on_line;
+  })
 end
 
 return M
