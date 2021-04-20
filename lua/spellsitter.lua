@@ -6,11 +6,7 @@ local api = vim.api
 local M = {}
 
 local cfg
-
 local ns
-local hl_query
-local cache = {}
-local active_bufs = {}
 
 local ffi = require("ffi")
 ffi.cdef[[
@@ -70,9 +66,13 @@ local function add_extmark(bufnr, lnum, col, len)
   end
 end
 
+local hl_queries = {}
+
 local function get_spellcheck_ranges(bufnr, lnum)
   local r = {}
   local parser = get_parser(bufnr)
+
+  local hl_query = hl_queries[parser:lang()]
 
   parser:for_each_tree(function(tstree, _)
     local root_node = tstree:root()
@@ -131,51 +131,17 @@ local function on_line(_, winid, bufnr, lnum)
   end
 end
 
-local function invalidate_cache_lines(bufnr, first)
-  local bcache = cache[bufnr]
-  if not bcache then
-    return
-  end
-  for i = first-1, api.nvim_buf_line_count(bufnr) do
-    bcache[i] = nil
-  end
-end
-
-local function attach(winid, cbuf)
-  if active_bufs[cbuf] then
-    -- Already attached
-    return
-  end
-  active_bufs[cbuf] = true
-
-  -- Disable lagacy vim spellchecker
-  api.nvim_win_set_option(winid, 'spell', false)
-
-  api.nvim_buf_attach(cbuf, false, {
-    on_lines = function(_, bufnr, _, first)
-      invalidate_cache_lines(bufnr, first)
-    end,
-    on_detach = function(_, bufnr)
-      active_bufs[bufnr] = nil
-    end
-  })
-end
-
-local function on_win(_, winid, bufnr)
+local function on_win(_, _, bufnr)
   if use_ts() then
     local ok, parser = pcall(get_parser, bufnr)
-    if not ok then
+    if not ok  then
       return false
     end
-    if not hl_query then
-      hl_query = query.get_query(parser:lang(), "highlights")
+    local lang = parser:lang()
+    if not hl_queries[lang] then
+      hl_queries[lang] = query.get_query(lang, "highlights")
     end
-  end
-
-  attach(winid, bufnr)
-
-  if not cache[bufnr] then
-    cache[bufnr] = {}
+    parser:parse()
   end
 end
 
@@ -189,7 +155,7 @@ function M.setup(cfg_)
 
   api.nvim_set_decoration_provider(ns, {
     on_win = on_win,
-    on_line = on_line;
+    on_line = on_line,
   })
 end
 
