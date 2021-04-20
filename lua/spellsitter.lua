@@ -144,6 +144,8 @@ local function on_win(_, _, bufnr)
     if not hl_queries[lang] then
       hl_queries[lang] = query.get_query(lang, "highlights")
     end
+    -- FIXME: shouldn't be required. Possibly related to:
+    -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
     parser:parse()
   end
 end
