@@ -150,13 +150,8 @@ local function on_win(_, _, bufnr)
   vim.wo.spell = false
 end
 
-local function wrap_mapping(key)
-  vim.api.nvim_set_keymap('n', key,
-    string.format([[v:lua.package.loaded.spellsitter._wrap_map('%s')]], key),
-    {expr=true}
-  )
-end
-
+-- Quickly enable 'spell' when running mappings as spell.c explicitly checks for
+-- it for much of its functionality.
 M._wrap_map = function(key)
   vim.wo.spell = true
   vim.schedule(function()
@@ -184,7 +179,10 @@ function M.setup(cfg_)
   for _, key in ipairs{
     'z=', 'zW', 'zg', 'zG', 'zw', 'zuW', 'zug', 'zuG', 'zuw'
   } do
-    wrap_mapping(key)
+    vim.api.nvim_set_keymap('n', key,
+      string.format([[v:lua.package.loaded.spellsitter._wrap_map('%s')]], key),
+      {expr=true}
+    )
   end
 
   -- TODO: implement [s, ]s, ]S and [S
