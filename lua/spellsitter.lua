@@ -10,47 +10,70 @@ local ns
 
 local ffi = require("ffi")
 
+local spell_check
+
 local function setup_spellcheck()
   ffi.cdef[[
-  typedef void win_T;
+    typedef void win_T;
 
-  win_T* find_window_by_handle(int window, int err);
+    typedef int ErrorType;
 
-  typedef int hlf_T;
+    typedef struct {
+      ErrorType type;
+      char *msg;
+    } Error;
 
-  size_t spell_check(
+    win_T* find_window_by_handle(int window, Error *err);
+
+    typedef int hlf_T;
+
+    size_t spell_check(
       win_T *wp, const char *ptr, hlf_T *attrp,
       int *capcol, bool docount);
   ]]
+
+  local capcol = ffi.new("int[1]", -1)
+  local hlf = ffi.new("hlf_T[1]", 0)
+
+  spell_check = function(win_handle, text)
+    hlf[0] = 0
+    capcol[0] = -1
+
+    local len
+    -- FIXME: Spell check can segfault on strings that begin with punctuation.
+    -- Probably a bug in the C function.
+    local leading_punc = text:match('^%p+')
+    if leading_punc then
+      len = #leading_punc
+    else
+      len = tonumber(ffi.C.spell_check(win_handle, text, hlf, capcol, false))
+    end
+
+    return len, tonumber(hlf[0])
+  end
 end
 
 local HLF_SPB = 30
 
-local function spell_check(text, winid)
-  local w = ffi.C.find_window_by_handle(winid, 0)
-  local capcol = ffi.new("int[1]", -1)
-  local hlf = ffi.new("hlf_T[1]", 0)
+local function spell_check_iter(text, winid)
+  local err = ffi.new("Error[1]")
+  local w = ffi.C.find_window_by_handle(winid, err)
+
   local sum = 0
 
   return function()
     while #text > 0 do
-      hlf[0] = 0
-
-      local len = tonumber(ffi.C.spell_check(w, text, hlf, capcol, false))
+      local len, res = spell_check(w, text)
       local rsum = sum
 
       sum = sum + len
       text = text:sub(len+1, -1)
 
-      if tonumber(hlf[0]) == HLF_SPB then
+      if res == HLF_SPB then
         return rsum, len
       end
     end
   end
-end
-
-local function use_ts()
-  return not vim.tbl_isempty(cfg.captures)
 end
 
 local function add_extmark(bufnr, lnum, col, len)
@@ -71,11 +94,12 @@ end
 
 local hl_queries = {}
 
-local function get_spellcheck_ranges(bufnr, lnum)
-  local r = {}
+local function on_line(_, winid, bufnr, lnum)
   local parser = get_parser(bufnr)
 
   local hl_query = hl_queries[parser:lang()]
+
+  local line = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
 
   parser:for_each_tree(function(tstree, _)
     local root_node = tstree:root()
@@ -87,8 +111,7 @@ local function get_spellcheck_ranges(bufnr, lnum)
     end
 
     for id, node in hl_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
-      local capture = hl_query.captures[id]
-      if vim.tbl_contains(cfg.captures, capture) then
+      if vim.tbl_contains(cfg.captures, hl_query.captures[id]) then
         local start_row, start_col, end_row, end_col = node:range()
         if lnum ~= start_row then
           start_col = 0
@@ -96,58 +119,34 @@ local function get_spellcheck_ranges(bufnr, lnum)
         if lnum ~= end_row then
           end_col = -1
         end
-        table.insert(r, {start_col, end_col})
+        local l = line:sub(start_col+1, end_col)
+        for col, len in spell_check_iter(l, winid) do
+          add_extmark(bufnr, lnum, start_col + col, len)
+        end
       end
     end
   end)
-
-  return r
-end
-
-local function mask_ranges(line, ranges)
-  local r = {}
-  for _, range in ipairs(ranges) do
-    local scol, ecol = unpack(range)
-    local l = string.rep(' ', scol)..line:sub(scol+1, ecol)
-    table.insert(r, l)
-  end
-  return r
-end
-
-local function on_line(_, winid, bufnr, lnum)
-  local lines
-  if use_ts() then
-    local ranges = get_spellcheck_ranges(bufnr, lnum)
-    if vim.tbl_isempty(ranges) then
-      return
-    end
-    local l = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
-    lines = mask_ranges(l, ranges)
-  else
-    lines = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)
-  end
-
-  for _, l in ipairs(lines) do
-    for col, len in spell_check(l, winid) do
-      add_extmark(bufnr, lnum, col, len)
-    end
-  end
 end
 
 local function on_win(_, _, bufnr)
-  if use_ts() then
-    local ok, parser = pcall(get_parser, bufnr)
-    if not ok  then
-      return false
-    end
-    local lang = parser:lang()
-    if not hl_queries[lang] then
-      hl_queries[lang] = query.get_query(lang, "highlights")
-    end
-    -- FIXME: shouldn't be required. Possibly related to:
-    -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
-    parser:parse()
+  if not api.nvim_buf_is_loaded(bufnr)
+    or api.nvim_buf_get_option(bufnr, 'buftype') ~= '' then
+    return false
   end
+  if vim.tbl_isempty(cfg.captures) then
+    return false
+  end
+  local ok, parser = pcall(get_parser, bufnr)
+  if not ok  then
+    return false
+  end
+  local lang = parser:lang()
+  if not hl_queries[lang] then
+    hl_queries[lang] = query.get_query(lang, "highlights")
+  end
+  -- FIXME: shouldn't be required. Possibly related to:
+  -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
+  parser:parse()
 end
 
 function M.setup(cfg_)
