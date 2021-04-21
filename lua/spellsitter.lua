@@ -147,6 +147,22 @@ local function on_win(_, _, bufnr)
   -- FIXME: shouldn't be required. Possibly related to:
   -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
   parser:parse()
+  vim.wo.spell = false
+end
+
+local function wrap_mapping(key)
+  vim.api.nvim_set_keymap('n', key,
+    string.format([[v:lua.package.loaded.spellsitter._wrap_map('%s')]], key),
+    {expr=true}
+  )
+end
+
+M._wrap_map = function(key)
+  vim.wo.spell = true
+  vim.schedule(function()
+    vim.wo.spell = false
+  end)
+  return key
 end
 
 function M.setup(cfg_)
@@ -162,6 +178,20 @@ function M.setup(cfg_)
     on_win = on_win,
     on_line = on_line,
   })
+
+  -- Not all these need to be wrapped but spell.c is pretty messy so wrap them
+  -- for good measure.
+  for _, key in ipairs{
+    'z=', 'zW', 'zg', 'zG', 'zw', 'zuW', 'zug', 'zuG', 'zuw'
+  } do
+    wrap_mapping(key)
+  end
+
+  -- TODO: implement [s, ]s, ]S and [S
 end
+
+-- M.list_marks = function()
+--   print(vim.inspect(api.nvim_buf_get_extmarks(0, ns, 0, -1, {})))
+-- end
 
 return M

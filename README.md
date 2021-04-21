@@ -64,5 +64,4 @@ require('spellsitter').setup {
 
 ## TODO
 
-- [ ] Add word suggestions via pmenu.
-- [ ] Provide implementations for existing spell related mappings: `]s`, `[s`, `zg`, etc.
+- [ ] Provide implementations for existing spell movement mappings: `]s`, `[s`
