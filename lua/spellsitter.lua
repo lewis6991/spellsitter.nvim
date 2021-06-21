@@ -129,6 +129,9 @@ local function on_line(_, winid, bufnr, lnum)
 end
 
 local function on_win(_, _, bufnr)
+  if pcall(api.nvim_buf_get_var, bufnr, 'current_syntax') then
+    return false
+  end
   if not api.nvim_buf_is_loaded(bufnr)
     or api.nvim_buf_get_option(bufnr, 'buftype') ~= '' then
     return false
