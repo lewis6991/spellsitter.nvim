@@ -156,10 +156,12 @@ end
 -- Quickly enable 'spell' when running mappings as spell.c explicitly checks for
 -- it for much of its functionality.
 M._wrap_map = function(key)
-  vim.wo.spell = true
-  vim.schedule(function()
-    vim.wo.spell = false
-  end)
+  if not vim.wo.spell then
+    vim.wo.spell = true
+    vim.schedule(function()
+      vim.wo.spell = false
+    end)
+  end
   return key
 end
 
