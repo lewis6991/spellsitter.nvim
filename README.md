@@ -61,7 +61,3 @@ require('spellsitter').setup {
   captures = {'comment'},  -- set to {} to spellcheck everything
 }
 ```
-
-## TODO
-
-- [ ] Provide implementations for existing spell movement mappings: `]s`, `[s`

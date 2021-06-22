@@ -83,8 +83,7 @@ local function add_extmark(bufnr, lnum, col, len)
   local ok, _ = pcall(api.nvim_buf_set_extmark, bufnr, ns, lnum, col, {
     end_line = lnum,
     end_col = col+len,
-    hl_group = cfg.hl_id,
-    ephemeral = true,
+    hl_group = cfg.hl_id
   })
 
   if not ok then
@@ -92,9 +91,18 @@ local function add_extmark(bufnr, lnum, col, len)
   end
 end
 
+local function remove_line_extmarks(bufnr, lnum)
+  local es = api.nvim_buf_get_extmarks(bufnr, ns, {lnum,0}, {lnum,-1}, {})
+  for _, e in ipairs(es) do
+    api.nvim_buf_del_extmark(bufnr, ns, e[1])
+  end
+end
+
 local hl_queries = {}
 
 local function on_line(_, winid, bufnr, lnum)
+  remove_line_extmarks(bufnr, lnum)
+
   local parser = get_parser(bufnr)
 
   local hl_query = hl_queries[parser:lang()]
@@ -128,7 +136,7 @@ local function on_line(_, winid, bufnr, lnum)
   end)
 end
 
-local function on_win(_, _, bufnr)
+local function buf_enabled(bufnr)
   if pcall(api.nvim_buf_get_var, bufnr, 'current_syntax') then
     return false
   end
@@ -139,10 +147,17 @@ local function on_win(_, _, bufnr)
   if vim.tbl_isempty(cfg.captures) then
     return false
   end
-  local ok, parser = pcall(get_parser, bufnr)
-  if not ok  then
+  if not pcall(get_parser, bufnr) then
     return false
   end
+  return true
+end
+
+local function on_win(_, _, bufnr)
+  if not buf_enabled(bufnr) then
+    return false
+  end
+  local parser = get_parser(bufnr)
   local lang = parser:lang()
   if not hl_queries[lang] then
     hl_queries[lang] = query.get_query(lang, "highlights")
@@ -150,7 +165,6 @@ local function on_win(_, _, bufnr)
   -- FIXME: shouldn't be required. Possibly related to:
   -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
   parser:parse()
-  vim.wo.spell = false
 end
 
 -- Quickly enable 'spell' when running mappings as spell.c explicitly checks for
@@ -163,6 +177,64 @@ M._wrap_map = function(key)
     end)
   end
   return key
+end
+
+M.nav = function(reverse)
+  local row, col = unpack(api.nvim_win_get_cursor(0))
+  local e
+  if reverse then
+    e = api.nvim_buf_get_extmarks(0, ns, {row-1,col-1}, 0, {limit = 1})[1]
+  else
+    e = api.nvim_buf_get_extmarks(0, ns, {row-1,col+1}, -1, {limit = 1})[1]
+  end
+
+  if e then
+    local nrow = e[2]
+    local ncol = e[3]
+    api.nvim_win_set_cursor(0, {nrow+1, ncol})
+  end
+end
+
+function M.attach(bufnr)
+  bufnr = bufnr or api.nvim_get_current_buf()
+
+  if not buf_enabled(bufnr) then
+    return false
+  end
+
+  -- Not all these need to be wrapped but spell.c is pretty messy so wrap them
+  -- for good measure.
+  for _, key in ipairs{
+    'z=', 'zW', 'zg', 'zG', 'zw', 'zuW', 'zug', 'zuG', 'zuw'
+  } do
+    api.nvim_buf_set_keymap(bufnr, 'n', key,
+      string.format([[v:lua.package.loaded.spellsitter._wrap_map('%s')]], key),
+      {expr=true}
+    )
+  end
+
+  api.nvim_buf_set_keymap(bufnr, 'n', ']s', [[<cmd>lua require'spellsitter'.nav()<cr>]], {})
+  api.nvim_buf_set_keymap(bufnr, 'n', '[s', [[<cmd>lua require'spellsitter'.nav(true)<cr>]], {})
+end
+
+do
+  local spell_opt = {}
+
+  function M.mod_spell_opt()
+    local bufnr = api.nvim_get_current_buf()
+    if not buf_enabled(bufnr) then return end
+    spell_opt[bufnr] = vim.wo.spell
+    vim.wo.spell = false
+  end
+
+  function M.restore_spell_opt()
+    local bufnr = api.nvim_get_current_buf()
+    if not buf_enabled(bufnr) then return end
+    local saved = spell_opt[bufnr]
+    if saved ~= nil then
+      vim.wo.spell = saved
+    end
+  end
 end
 
 function M.setup(cfg_)
@@ -179,22 +251,16 @@ function M.setup(cfg_)
     on_line = on_line,
   })
 
-  -- Not all these need to be wrapped but spell.c is pretty messy so wrap them
-  -- for good measure.
-  for _, key in ipairs{
-    'z=', 'zW', 'zg', 'zG', 'zw', 'zuW', 'zug', 'zuG', 'zuw'
-  } do
-    vim.api.nvim_set_keymap('n', key,
-      string.format([[v:lua.package.loaded.spellsitter._wrap_map('%s')]], key),
-      {expr=true}
-    )
+  for _, buf in ipairs(api.nvim_list_bufs()) do
+    M.attach(buf)
   end
 
-  -- TODO: implement [s, ]s, ]S and [S
+  vim.cmd[[augroup spellsitter]]
+  vim.cmd[[autocmd!]]
+  vim.cmd[[autocmd BufRead,BufNewFile * lua require("spellsitter").attach()]]
+  vim.cmd[[autocmd BufEnter * lua require("spellsitter").mod_spell_opt()]]
+  vim.cmd[[autocmd BufLeave * lua require("spellsitter").restore_spell_opt()]]
+  vim.cmd[[augroup END']]
 end
-
--- M.list_marks = function()
---   print(vim.inspect(api.nvim_buf_get_extmarks(0, ns, 0, -1, {})))
--- end
 
 return M
