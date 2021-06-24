@@ -76,6 +76,8 @@ local function spell_check_iter(text, winid)
   end
 end
 
+local marks = {}
+
 local function add_extmark(bufnr, lnum, col, len)
   -- TODO: This errors because of an out of bounds column when inserting
   -- newlines. Wrapping in pcall hides the issue.
@@ -83,25 +85,22 @@ local function add_extmark(bufnr, lnum, col, len)
   local ok, _ = pcall(api.nvim_buf_set_extmark, bufnr, ns, lnum, col, {
     end_line = lnum,
     end_col = col+len,
-    hl_group = cfg.hl_id
+    hl_group = cfg.hl_id,
+    ephemeral = true
   })
 
   if not ok then
     print(('ERROR: Failed to add extmark, lnum=%d pos=%d'):format(lnum, col))
   end
-end
-
-local function remove_line_extmarks(bufnr, lnum)
-  local es = api.nvim_buf_get_extmarks(bufnr, ns, {lnum,0}, {lnum,-1}, {})
-  for _, e in ipairs(es) do
-    api.nvim_buf_del_extmark(bufnr, ns, e[1])
-  end
+  local lnum1 = lnum+1
+  marks[lnum1] = marks[lnum1] or {}
+  marks[lnum1][#marks[lnum1]+1] = {col, col+len}
 end
 
 local hl_queries = {}
 
 local function on_line(_, winid, bufnr, lnum)
-  remove_line_extmarks(bufnr, lnum)
+  marks[lnum+1] = nil
 
   local parser = get_parser(bufnr)
 
@@ -180,18 +179,35 @@ M._wrap_map = function(key)
 end
 
 M.nav = function(reverse)
-  local row, col = unpack(api.nvim_win_get_cursor(0))
-  local e
-  if reverse then
-    e = api.nvim_buf_get_extmarks(0, ns, {row-1,col-1}, 0, {limit = 1})[1]
-  else
-    e = api.nvim_buf_get_extmarks(0, ns, {row-1,col+1}, -1, {limit = 1})[1]
-  end
+  local target = (function()
+    local row, col = unpack(api.nvim_win_get_cursor(0))
+    if reverse then
+      for i = row, 0, -1 do
+        if marks[i] then
+          for j = #marks[i], 1, -1 do
+            local m = marks[i][j]
+            if i ~= row or col > m[1] then
+              return {i, m[1]}
+            end
+          end
+        end
+      end
+    else
+      for i = row, vim.fn.line('$') do
+        if marks[i] then
+          for j = 1, #marks[i] do
+            local m = marks[i][j]
+            if i ~= row or col < m[1] then
+              return {i, m[1]}
+            end
+          end
+        end
+      end
+    end
+  end)()
 
-  if e then
-    local nrow = e[2]
-    local ncol = e[3]
-    api.nvim_win_set_cursor(0, {nrow+1, ncol})
+  if target then
+    api.nvim_win_set_cursor(0, target)
   end
 end
 
