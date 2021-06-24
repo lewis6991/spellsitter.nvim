@@ -183,6 +183,8 @@ M.nav = function(reverse)
     local row, col = unpack(api.nvim_win_get_cursor(0))
     if reverse then
       for i = row, 0, -1 do
+        -- Run on_line in case that line hasn't been drawn yet
+        on_line(nil, 0, 0, i)
         if marks[i] then
           for j = #marks[i], 1, -1 do
             local m = marks[i][j]
@@ -193,7 +195,9 @@ M.nav = function(reverse)
         end
       end
     else
-      for i = row, vim.fn.line('$') do
+      for i = row, vim.fn.line('$')-1 do
+        -- Run on_line in case that line hasn't been drawn yet
+        on_line(nil, 0, 0, i)
         if marks[i] then
           for j = 1, #marks[i] do
             local m = marks[i][j]
