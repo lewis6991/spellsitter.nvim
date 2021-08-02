@@ -18,6 +18,8 @@ local function setup_spellcheck()
 
     typedef int ErrorType;
 
+    typedef unsigned char char_u;
+
     typedef struct {
       ErrorType type;
       char *msg;
@@ -30,6 +32,8 @@ local function setup_spellcheck()
     size_t spell_check(
       win_T *wp, const char *ptr, hlf_T *attrp,
       int *capcol, bool docount);
+
+    char_u *did_set_spelllang(win_T *wp);
   ]]
 
   local capcol = ffi.new("int[1]", -1)
@@ -58,6 +62,14 @@ local HLF_SPB = 30
 local function spell_check_iter(text, winid)
   local err = ffi.new("Error[1]")
   local w = ffi.C.find_window_by_handle(winid, err)
+
+  -- Ensure that the spell language is set for the window. By ensuring this is
+  -- set, it prevents an early return from the spelling function that skips
+  -- the spell checking.
+  local err_spell_lang = ffi.C.did_set_spelllang(w)
+  if not err_spell_lang then
+      print("ERROR: Failed to set spell languages.", err_spell_lang)
+  end
 
   local sum = 0
 
