@@ -180,28 +180,46 @@ end
 
 M.nav = function(reverse)
   local target = (function()
+    -- This api uses a 1 based indexing for the rows (matching the row numbers
+    -- within the UI) and a 0 based indexing for columns.
     local row, col = unpack(api.nvim_win_get_cursor(0))
+
     if reverse then
-      for i = row, 0, -1 do
-        -- Run on_line in case that line hasn't been drawn yet
-        on_line(nil, 0, 0, i)
+      -- From the current row number to the start in reverse. Here we are
+      -- working with a 1 based indexing for the rows, hence the final value is
+      -- 1.
+      for i = row, 1, -1 do
+        -- Run on_line in case that line hasn't been drawn yet.
+        -- Here we are converting the 1 indexed values we have been using to a
+        -- 0 indexed value which the on_line function takes.
+        on_line(nil, 0, 0, i-1)
         if marks[i] then
           for j = #marks[i], 1, -1 do
             local m = marks[i][j]
             if i ~= row or col > m[1] then
+              -- We are using this directly as input to nvim_win_set_cursor,
+              -- which uses a 1 based index, so we set this with i rather than
+              -- row_num.
               return {i, m[1]}
             end
           end
         end
       end
     else
-      for i = row, vim.fn.line('$')-1 do
+      -- From the current row number to the end. Here we are working with 1
+      -- indexed values, so we go all the way to the last line of the file.
+      for i = row, vim.fn.line('$') do
         -- Run on_line in case that line hasn't been drawn yet
-        on_line(nil, 0, 0, i)
+        -- Here we are converting the 1 indexed values we have been using to a
+        -- 0 indexed value which the on_line function takes.
+        on_line(nil, 0, 0, i-1)
         if marks[i] then
           for j = 1, #marks[i] do
             local m = marks[i][j]
             if i ~= row or col < m[1] then
+              -- We are using this directly as input to nvim_win_set_cursor,
+              -- which uses a 1 based index, so we set this with i rather than
+              -- row_num.
               return {i, m[1]}
             end
           end
