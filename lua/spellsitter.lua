@@ -138,7 +138,12 @@ local function on_line(_, winid, bufnr, lnum)
         if lnum ~= end_row then
           end_col = -1
         end
-        local l = line:sub(start_col+1, end_col)
+        -- This extracts the substring corresponding to the region we want to
+        -- spell check from the line. Since this is a lua function on the line
+        -- string, we need to convert the 0 indexed values of the columns, to 1
+        -- indexed values. Note here that the value of the end column is end
+        -- inclusive, so we need to increment it in addition to the start.
+        local l = line:sub(start_col+1, end_col+1)
         for col, len in spell_check_iter(l, winid) do
           add_extmark(bufnr, lnum, start_col + col, len)
         end
