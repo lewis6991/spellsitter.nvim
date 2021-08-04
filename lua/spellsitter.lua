@@ -63,14 +63,6 @@ local function spell_check_iter(text, winid)
   local err = ffi.new("Error[1]")
   local w = ffi.C.find_window_by_handle(winid, err)
 
-  -- Ensure that the spell language is set for the window. By ensuring this is
-  -- set, it prevents an early return from the spelling function that skips
-  -- the spell checking.
-  local err_spell_lang = ffi.C.did_set_spelllang(w)
-  if not err_spell_lang then
-      print("ERROR: Failed to set spell languages.", err_spell_lang)
-  end
-
   local sum = 0
 
   return function()
@@ -169,7 +161,7 @@ local function buf_enabled(bufnr)
   return true
 end
 
-local function on_win(_, _, bufnr)
+local function on_win(_, winid, bufnr)
   if not buf_enabled(bufnr) then
     return false
   end
@@ -178,6 +170,17 @@ local function on_win(_, _, bufnr)
   if not hl_queries[lang] then
     hl_queries[lang] = query.get_query(lang, "highlights")
   end
+
+  -- Ensure that the spell language is set for the window. By ensuring this is
+  -- set, it prevents an early return from the spelling function that skips
+  -- the spell checking.
+  local err = ffi.new("Error[1]")
+  local w = ffi.C.find_window_by_handle(winid, err)
+  local err_spell_lang = ffi.C.did_set_spelllang(w)
+  if not err_spell_lang then
+      print("ERROR: Failed to set spell languages.", err_spell_lang)
+  end
+
   -- FIXME: shouldn't be required. Possibly related to:
   -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
   parser:parse()
