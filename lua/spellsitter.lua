@@ -282,26 +282,7 @@ function M.attach(bufnr)
 
   api.nvim_buf_set_keymap(bufnr, 'n', ']s', [[<cmd>lua require'spellsitter'.nav()<cr>]], {})
   api.nvim_buf_set_keymap(bufnr, 'n', '[s', [[<cmd>lua require'spellsitter'.nav(true)<cr>]], {})
-end
-
-do
-  local spell_opt = {}
-
-  function M.mod_spell_opt()
-    local bufnr = api.nvim_get_current_buf()
-    if not buf_enabled(bufnr) then return end
-    spell_opt[bufnr] = vim.wo.spell
-    vim.wo.spell = false
-  end
-
-  function M.restore_spell_opt()
-    local bufnr = api.nvim_get_current_buf()
-    if not buf_enabled(bufnr) then return end
-    local saved = spell_opt[bufnr]
-    if saved ~= nil then
-      vim.wo.spell = saved
-    end
-  end
+  vim.wo.spell = false
 end
 
 function M.setup(cfg_)
@@ -322,12 +303,12 @@ function M.setup(cfg_)
     M.attach(buf)
   end
 
-  vim.cmd[[augroup spellsitter]]
-  vim.cmd[[autocmd!]]
-  vim.cmd[[autocmd BufRead,BufNewFile * lua require("spellsitter").attach()]]
-  vim.cmd[[autocmd BufEnter * lua require("spellsitter").mod_spell_opt()]]
-  vim.cmd[[autocmd BufLeave * lua require("spellsitter").restore_spell_opt()]]
-  vim.cmd[[augroup END']]
+  vim.cmd[[
+    augroup spellsitter
+    autocmd!
+    autocmd BufRead,BufNewFile * lua require("spellsitter").attach()
+    augroup END
+  ]]
 end
 
 return M
