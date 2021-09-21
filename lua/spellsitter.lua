@@ -57,7 +57,19 @@ local function setup_spellcheck()
   end
 end
 
-local HLF_SPB = 30
+local HLF_SPB
+local HLF_SPR
+local HLF_SPL
+
+if vim.version().minor == 5 then
+  HLF_SPB = 30
+  HLF_SPR = 32
+  HLF_SPL = 33
+else
+  HLF_SPB = 32
+  HLF_SPR = 34
+  HLF_SPL = 35
+end
 
 local function spell_check_iter(text, winid)
   local err = ffi.new("Error[1]")
@@ -73,7 +85,7 @@ local function spell_check_iter(text, winid)
       sum = sum + len
       text = text:sub(len+1, -1)
 
-      if res == HLF_SPB then
+      if res == HLF_SPB or res == HLF_SPR or res == HLF_SPL then
         return rsum, len
       end
     end
@@ -307,7 +319,7 @@ function M.setup(cfg_)
   })
 
   for _, buf in ipairs(api.nvim_list_bufs()) do
-    M.attach(buf)
+    vim.schedule_wrap(M.attach)(buf)
   end
 
   vim.cmd[[
