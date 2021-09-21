@@ -281,7 +281,7 @@ M.nav = function(reverse)
   end
 end
 
-function M.attach(bufnr)
+M.attach = vim.schedule_wrap(function(bufnr)
   bufnr = bufnr or api.nvim_get_current_buf()
 
   if not buf_enabled(bufnr) then
@@ -302,7 +302,7 @@ function M.attach(bufnr)
   api.nvim_buf_set_keymap(bufnr, 'n', ']s', [[<cmd>lua require'spellsitter'.nav()<cr>]], {})
   api.nvim_buf_set_keymap(bufnr, 'n', '[s', [[<cmd>lua require'spellsitter'.nav(true)<cr>]], {})
   vim.wo.spell = false
-end
+end)
 
 function M.setup(cfg_)
   cfg = cfg_ or {}
@@ -319,13 +319,13 @@ function M.setup(cfg_)
   })
 
   for _, buf in ipairs(api.nvim_list_bufs()) do
-    vim.schedule_wrap(M.attach)(buf)
+    M.attach(buf)
   end
 
   vim.cmd[[
     augroup spellsitter
     autocmd!
-    autocmd BufRead,BufNewFile * lua require("spellsitter").attach()
+    autocmd BufRead,BufNew,BufNewFile * lua _G.package.loaded.spellsitter.attach()
     augroup END
   ]]
 end
