@@ -153,8 +153,15 @@ local function on_line(_, winid, bufnr, lnum)
   end)
 end
 
+local excluded_filetypes = {
+  rst = true -- Just let the legacy spellchecker apply to the whole buffer
+}
+
 local function buf_enabled(bufnr)
   if pcall(api.nvim_buf_get_var, bufnr, 'current_syntax') then
+    return false
+  end
+  if excluded_filetypes[api.nvim_buf_get_option(bufnr, 'filetype')] then
     return false
   end
   if not api.nvim_buf_is_loaded(bufnr)
