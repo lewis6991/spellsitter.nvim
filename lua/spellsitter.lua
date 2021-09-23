@@ -170,6 +170,9 @@ local excluded_filetypes = {
 }
 
 local function buf_enabled(bufnr)
+  if not api.nvim_buf_is_loaded(bufnr) then
+    return false
+  end
   if pcall(api.nvim_buf_get_var, bufnr, 'current_syntax') then
     return false
   end
