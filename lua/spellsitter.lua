@@ -136,29 +136,31 @@ local function on_line(_, winid, bufnr, lnum)
     for id, node in hl_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
       if vim.tbl_contains(cfg.captures, hl_query.captures[id]) then
         local start_row, start_col, end_row, end_col = node:range()
-        -- This extracts the substring corresponding to the region we want to
-        -- spell check from the line. Since this is a lua function on the line
-        -- string, we need to convert the 0 indexed values of the columns, to 1
-        -- indexed values. Note here that the value of the end column is end
-        -- inclusive, so we need to increment it in addition to the start.
-        if lnum ~= start_row then
-          -- check from the start of this line
-          start_col = 1
-        else
-          start_col = start_col + 1;
-        end
+        if lnum >= start_row and lnum <= end_row then
+          -- This extracts the substring corresponding to the region we want to
+          -- spell check from the line. Since this is a lua function on the line
+          -- string, we need to convert the 0 indexed values of the columns, to 1
+          -- indexed values. Note here that the value of the end column is end
+          -- inclusive, so we need to increment it in addition to the start.
+          if lnum ~= start_row then
+            -- check from the start of this line
+            start_col = 1
+          else
+            start_col = start_col + 1;
+          end
 
-        if lnum ~= end_row then
-          -- check until the end of this line
-          end_col = -1
-        else
-          end_col = end_col + 1;
-        end
+          if lnum ~= end_row then
+            -- check until the end of this line
+            end_col = -1
+          else
+            end_col = end_col + 1;
+          end
 
-        local l = line:sub(start_col, end_col)
-        for col, len in spell_check_iter(l, winid) do
-          -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
-          add_extmark(bufnr, lnum, start_col + col - 1, len)
+          local l = line:sub(start_col, end_col)
+          for col, len in spell_check_iter(l, winid) do
+            -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
+            add_extmark(bufnr, lnum, start_col + col - 1, len)
+          end
         end
       end
     end
