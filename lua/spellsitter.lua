@@ -218,12 +218,19 @@ M.attach = vim.schedule_wrap(function(bufnr)
   vim.wo.spell = false
 end)
 
+local valid_spellcheckers = {'vimfn', 'ffi'}
+
 function M.setup(cfg_)
   cfg = cfg_ or {}
   cfg.hl = cfg.hl or 'SpellBad'
   cfg.hl_id = api.nvim_get_hl_id_by_name(cfg.hl)
   cfg.captures = cfg.captures or {'comment'}
   cfg.spellchecker = cfg.spellchecker or 'vimfn'
+
+  if not vim.tbl_contains(valid_spellcheckers, cfg.spellchecker) then
+    error(string.format('spellsitter: %s is not a valid spellchecker. Must be one of: %s',
+      cfg.spellchecker, table.concat(valid_spellcheckers, ', ')))
+  end
 
   ns = api.nvim_create_namespace('spellsitter')
 
