@@ -1,12 +1,9 @@
 local helpers = require('test.functional.helpers')(after_each)
 local Screen = require('test.functional.ui.screen')
 
-local inspect = require('vim.inspect')
-
 local feed          = helpers.feed
 local clear         = helpers.clear
 local command       = helpers.command
-local exec_capture  = helpers.exec_capture
 local exec_lua      = helpers.exec_lua
 
 local pj_root = os.getenv('PJ_ROOT')
@@ -28,7 +25,7 @@ describe('spellsitter', function()
 
   before_each(function()
     clear()
-    screen = Screen.new(30, 6)
+    screen = Screen.new(30, 16)
     screen:attach()
     command('cd '..pj_root)
 
@@ -49,77 +46,98 @@ describe('spellsitter', function()
     screen:detach()
   end)
 
-  it('basic spellcheck', function()
-    exec_lua([[require("spellsitter").setup{
-      hl = 'Error',
-      hunspell_args = {'-d', 'en_GB'},
-    }]])
+  local function test_spellchecker(imp)
+    describe(imp, function()
+      it('spellcheck', function()
+        exec_lua([[require("spellsitter").setup{
+          hl = 'Error',
+          spellchecker = ...
+        }]], imp)
 
-    load_ts('test/dummy.c', 'c')
+        load_ts('test/dummy.c', 'c')
 
-    screen:expect{grid=[[
-      {1:^// spelling }{7:mstake}            |
-      {1:// }{7:splling}{1: mistake}            |
-      {1:// spelling }{7:mstake}            |
-      {1:// }{7:splling}{1: mistake}            |
-      {6:int} {4:main}{5:()} {5:{}                  |
-                                    |
-    ]]}
+        screen:expect{grid=[[
+          {1:^// spelling }{7:mstake}            |
+          {1:// }{7:splling}{1: mistake}            |
+          {1:// spelling }{7:mstake}            |
+          {1:// }{7:splling}{1: mistake}            |
+          {6:int} {4:main}{5:()} {5:{}                  |
+          {5:}}                             |
+          {1:// }{7:splling}{1: mistake}            |
+          {1:// spelling }{7:mstake}            |
+          {1:// }{7:splling}{1: mistake}            |
+          {1:/* }{7:splll}{1: */} {6:int} {4:couunt}{5:()} {5:{}} {1:/*}|
+          {1: }{7:couunt}{1: }{7:funtion}{1: */}            |
+          {1:// }{7:badword}                    |
+          {1:// helicopter }{7:heli}            |
+          {1:// }{7:badwordwithdigits12345}{1: and }|
+          {1:good words}                    |
+                                        |
+        ]]}
 
-    feed('yyp')
+        feed('yyp')
 
-    screen:expect{grid=[[
-      {1:// spelling }{7:mstake}            |
-      {1:^// spelling }{7:mstake}            |
-      {1:// }{7:splling}{1: mistake}            |
-      {1:// spelling }{7:mstake}            |
-      {1:// }{7:splling}{1: mistake}            |
-                                    |
-    ]]}
+        screen:expect{grid=[[
+          {1:// spelling }{7:mstake}            |
+          {1:^// spelling }{7:mstake}            |
+          {1:// }{7:splling}{1: mistake}            |
+          {1:// spelling }{7:mstake}            |
+          {1:// }{7:splling}{1: mistake}            |
+          {6:int} {4:main}{5:()} {5:{}                  |
+          {5:}}                             |
+          {1:// }{7:splling}{1: mistake}            |
+          {1:// spelling }{7:mstake}            |
+          {1:// }{7:splling}{1: mistake}            |
+          {1:/* }{7:splll}{1: */} {6:int} {4:couunt}{5:()} {5:{}} {1:/*}|
+          {1: }{7:couunt}{1: }{7:funtion}{1: */}            |
+          {1:// }{7:badword}                    |
+          {1:// helicopter }{7:heli}            |
+          {1:// }{7:badwordwithdigits12345}{1: a}{8:@@@}|
+                                        |
+        ]]}
 
-    feed('G')
+        feed('G')
 
-    screen:expect{grid=[[
-      {1:// }{7:splling}{1: mistake}            |
-      {1:// spelling }{7:mstake}            |
-      {1:// }{7:splling}{1: mistake}            |
-      {1:^/* }{7:splll}{1: */} {6:int} {4:couunt}{5:()} {5:{}} {1:/*}|
-      {1: }{7:couunt}{1: }{7:funtion}{1: */}            |
-                                    |
-    ]]}
+        screen:expect{grid=[[
+          {1:// spelling }{7:mstake}            |
+          {1:// }{7:splling}{1: mistake}            |
+          {6:int} {4:main}{5:()} {5:{}                  |
+          {5:}}                             |
+          {1:// }{7:splling}{1: mistake}            |
+          {1:// spelling }{7:mstake}            |
+          {1:// }{7:splling}{1: mistake}            |
+          {1:/* }{7:splll}{1: */} {6:int} {4:couunt}{5:()} {5:{}} {1:/*}|
+          {1: }{7:couunt}{1: }{7:funtion}{1: */}            |
+          {1:// }{7:badword}                    |
+          {1:// helicopter }{7:heli}            |
+          {1:// }{7:badwordwithdigits12345}{1: and }|
+          {1:good words}                    |
+          {1:^// }{7:badword}{1: good word }{7:badword}{1: g}|
+          {1:ood word }{7:badword}              |
+                                        |
+        ]]}
 
-  end)
+      end)
 
-  it('detects bad hunspell', function()
-    screen:try_resize(80, 3)
-    exec_lua([[require("spellsitter").setup{
-      hl = 'Error',
-      hunspell_args = {'-d', 'rarrrr'},
-    }]])
+      it('supports unicode', function()
+        screen:try_resize(80, 3)
+        exec_lua([[require("spellsitter").setup{
+          hl = 'Error',
+          spellchecker = ...
+        }]], imp)
 
-    screen:expect{grid=[[
-      stderr: "Can't open affix or dictionar...es for dictionary named \"rarrrr\".\n" |
-      {7:Error(spellsitter): hunspell is not setup correctly}                             |
-      {6:Press ENTER or type command to continue}^                                         |
-    ]]}
+        load_ts('test/unicode_chars.c', 'c')
 
-    feed('<cr>')
-  end)
+        screen:expect{grid=[[
+          {1:^// “So, }{7:Hermione}{1:, when you are going to look for your parents in Australia?”}    |
+          {8:~                                                                               }|
+                                                                                          |
+        ]]}
+      end)
+    end)
+  end
 
-  it('supports unicode', function()
-    screen:try_resize(80, 3)
-    exec_lua([[require("spellsitter").setup{
-      hl = 'Error',
-      hunspell_args = {'-d', 'en_GB'},
-    }]])
-
-    load_ts('test/unicode_chars.c', 'c')
-
-    screen:expect{grid=[[
-      {1:^// “So, }{7:Hermione}{1:, when you are going to look for your parents in Australia?”}    |
-      {8:~                                                                               }|
-                                                                                      |
-    ]]}
-  end)
+  test_spellchecker('vimfn')
+  test_spellchecker('ffi')
 
 end)
