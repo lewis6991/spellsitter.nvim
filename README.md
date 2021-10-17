@@ -1,5 +1,8 @@
 # spellsitter.nvim
 
+[![CI](https://github.com/lewis6991/spellsitter.nvim/workflows/CI/badge.svg?branch=master)](https://github.com/lewis6991/spellsitter.nvim/actions?query=workflow%3ACI)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Spell checker for Neovim powered by [tree-sitter](https://github.com/tree-sitter/tree-sitter).
 
 ## Status

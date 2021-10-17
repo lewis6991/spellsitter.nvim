@@ -59,7 +59,6 @@ jobs:
       - uses: leafo/gh-actions-lua@v8
         with:
           luaVersion: "luajit-2.1.0-beta3"
-      - uses: leafo/gh-actions-luarocks@v4
 
       - name: Cache neovim
         uses: actions/cache@v2
