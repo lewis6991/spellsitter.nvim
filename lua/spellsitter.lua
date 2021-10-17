@@ -8,91 +8,10 @@ local M = {}
 local cfg
 local ns
 
-local ffi = require("ffi")
-
-local spell_check
-
-local function setup_spellcheck()
-  ffi.cdef[[
-    typedef void win_T;
-
-    typedef int ErrorType;
-
-    typedef unsigned char char_u;
-
-    typedef struct {
-      ErrorType type;
-      char *msg;
-    } Error;
-
-    win_T* find_window_by_handle(int window, Error *err);
-
-    typedef int hlf_T;
-
-    size_t spell_check(
-      win_T *wp, const char *ptr, hlf_T *attrp,
-      int *capcol, bool docount);
-
-    char_u *did_set_spelllang(win_T *wp);
-  ]]
-
-  local capcol = ffi.new("int[1]", -1)
-  local hlf = ffi.new("hlf_T[1]", 0)
-
-  spell_check = function(win_handle, text)
-    hlf[0] = 0
-    capcol[0] = -1
-
-    local len
-    -- FIXME: Spell check can segfault on strings that begin with punctuation.
-    -- Probably a bug in the C function.
-    local leading_punc = text:match('^%p+')
-    if leading_punc then
-      len = #leading_punc
-    else
-      len = tonumber(ffi.C.spell_check(win_handle, text, hlf, capcol, false))
-    end
-
-    return len, tonumber(hlf[0])
-  end
-end
-
-local HLF_SPB
-local HLF_SPR
-local HLF_SPL
-
-if vim.version().minor == 5 then
-  HLF_SPB = 30
-  HLF_SPR = 32
-  HLF_SPL = 33
-else
-  HLF_SPB = 32
-  HLF_SPR = 34
-  HLF_SPL = 35
-end
-
-local function spell_check_iter(text, winid)
-  local err = ffi.new("Error[1]")
-  local w = ffi.C.find_window_by_handle(winid, err)
-
-  local sum = 0
-
-  return function()
-    while #text > 0 do
-      local len, res = spell_check(w, text)
-      local rsum = sum
-
-      sum = sum + len
-      text = text:sub(len+1, -1)
-
-      if res == HLF_SPB or res == HLF_SPR or res == HLF_SPL then
-        return rsum, len
-      end
-    end
-  end
-end
-
 local marks = {}
+
+-- Main spell checking function
+local spell_check_iter
 
 local function add_extmark(bufnr, lnum, col, len)
   -- TODO: This errors because of an out of bounds column when inserting
@@ -194,7 +113,7 @@ local function buf_enabled(bufnr)
   return true
 end
 
-local function on_win(_, winid, bufnr)
+local function on_win(_, _, bufnr)
   if not buf_enabled(bufnr) then
     return false
   end
@@ -202,16 +121,6 @@ local function on_win(_, winid, bufnr)
   local lang = parser:lang()
   if not hl_queries[lang] then
     hl_queries[lang] = query.get_query(lang, "highlights")
-  end
-
-  -- Ensure that the spell language is set for the window. By ensuring this is
-  -- set, it prevents an early return from the spelling function that skips
-  -- the spell checking.
-  local err = ffi.new("Error[1]")
-  local w = ffi.C.find_window_by_handle(winid, err)
-  local err_spell_lang = ffi.C.did_set_spelllang(w)
-  if not err_spell_lang then
-      print("ERROR: Failed to set spell languages.", err_spell_lang)
   end
 
   -- FIXME: shouldn't be required. Possibly related to:
@@ -314,10 +223,12 @@ function M.setup(cfg_)
   cfg.hl = cfg.hl or 'SpellBad'
   cfg.hl_id = api.nvim_get_hl_id_by_name(cfg.hl)
   cfg.captures = cfg.captures or {'comment'}
+  cfg.spellchecker = cfg.spellchecker or 'vimfn'
 
   ns = api.nvim_create_namespace('spellsitter')
 
-  setup_spellcheck()
+  spell_check_iter = require('spellsitter.spellcheck.'..cfg.spellchecker)
+
   api.nvim_set_decoration_provider(ns, {
     on_win = on_win,
     on_line = on_line,

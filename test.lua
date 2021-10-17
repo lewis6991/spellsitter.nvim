@@ -1,0 +1,4 @@
+-- badword
+-- helicopter heli
+-- badwordwithdigits12345 and good words
+-- badword good word badword good word badword
