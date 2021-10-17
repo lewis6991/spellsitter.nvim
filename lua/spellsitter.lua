@@ -28,14 +28,17 @@ local function add_extmark(bufnr, lnum, col, len)
     print(('ERROR: Failed to add extmark, lnum=%d pos=%d'):format(lnum, col))
   end
   local lnum1 = lnum+1
-  marks[lnum1] = marks[lnum1] or {}
-  marks[lnum1][#marks[lnum1]+1] = {col, col+len}
+  marks[bufnr] = marks[bufnr] or {}
+  marks[bufnr][lnum1] = marks[bufnr][lnum1] or {}
+  local lbmarks = marks[bufnr][lnum1]
+  lbmarks[#lbmarks+1] = {col, col+len}
 end
 
 local hl_queries = {}
 
 local function on_line(_, winid, bufnr, lnum)
-  marks[lnum+1] = nil
+  marks[bufnr] = marks[bufnr] or {}
+  marks[bufnr][lnum+1] = nil
 
   local parser = get_parser(bufnr)
 
@@ -141,10 +144,15 @@ M._wrap_map = function(key)
 end
 
 M.nav = function(reverse)
+  local bufnr = api.nvim_get_current_buf()
   local target = (function()
     -- This api uses a 1 based indexing for the rows (matching the row numbers
     -- within the UI) and a 0 based indexing for columns.
     local row, col = unpack(api.nvim_win_get_cursor(0))
+
+    marks[bufnr] = marks[bufnr] or {}
+
+    local bmarks = marks[bufnr]
 
     if reverse then
       -- From the current row number to the start in reverse. Here we are
@@ -154,10 +162,10 @@ M.nav = function(reverse)
         -- Run on_line in case that line hasn't been drawn yet.
         -- Here we are converting the 1 indexed values we have been using to a
         -- 0 indexed value which the on_line function takes.
-        on_line(nil, 0, 0, i-1)
-        if marks[i] then
-          for j = #marks[i], 1, -1 do
-            local m = marks[i][j]
+        on_line(nil, 0, bufnr, i-1)
+        if bmarks[i] then
+          for j = #bmarks[i], 1, -1 do
+            local m = bmarks[i][j]
             if i ~= row or col > m[1] then
               -- We are using this directly as input to nvim_win_set_cursor,
               -- which uses a 1 based index, so we set this with i rather than
@@ -174,10 +182,10 @@ M.nav = function(reverse)
         -- Run on_line in case that line hasn't been drawn yet
         -- Here we are converting the 1 indexed values we have been using to a
         -- 0 indexed value which the on_line function takes.
-        on_line(nil, 0, 0, i-1)
-        if marks[i] then
-          for j = 1, #marks[i] do
-            local m = marks[i][j]
+        on_line(nil, 0, bufnr, i-1)
+        if bmarks[i] then
+          for j = 1, #bmarks[i] do
+            local m = bmarks[i][j]
             if i ~= row or col < m[1] then
               -- We are using this directly as input to nvim_win_set_cursor,
               -- which uses a 1 based index, so we set this with i rather than
