@@ -1,4 +1,4 @@
-local query = require'vim.treesitter.query'
+local query = vim.treesitter.query
 local get_parser = vim.treesitter.get_parser
 
 local api = vim.api
@@ -9,6 +9,16 @@ local cfg
 local ns
 
 local marks = {}
+
+if not vim.tbl_contains(query.list_predicates(), 'has-parent?') then
+  -- Defined in nvim-treesitter so define it here if nvim-treesitter is not
+  -- installed
+  query.add_predicate("has-parent?", function (match, _, _, pred)
+    local node = match[pred[2]]:parent()
+    local ancestor_types = { unpack(pred, 3) }
+    return vim.tbl_contains(ancestor_types, node:type())
+  end)
+end
 
 -- Main spell checking function
 local spell_check_iter
@@ -34,7 +44,7 @@ local function add_extmark(bufnr, lnum, col, len)
   lbmarks[#lbmarks+1] = {col, col+len}
 end
 
-local hl_queries = {}
+local spell_queries = {}
 
 local function on_line(_, winid, bufnr, lnum)
   marks[bufnr] = marks[bufnr] or {}
@@ -42,7 +52,7 @@ local function on_line(_, winid, bufnr, lnum)
 
   local parser = get_parser(bufnr)
 
-  local hl_query = hl_queries[parser:lang()]
+  local spell_query = spell_queries[parser:lang()]
 
   local line = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
 
@@ -55,8 +65,8 @@ local function on_line(_, winid, bufnr, lnum)
       return
     end
 
-    for id, node in hl_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
-      if vim.tbl_contains(cfg.captures, hl_query.captures[id]) then
+    for id, node in spell_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
+      if vim.tbl_contains({'spell', 'comment'}, spell_query.captures[id]) then
         local start_row, start_col, end_row, end_col = node:range()
         if lnum >= start_row and lnum <= end_row then
           -- This extracts the substring corresponding to the region we want to
@@ -107,9 +117,6 @@ local function buf_enabled(bufnr)
     or api.nvim_buf_get_option(bufnr, 'buftype') ~= '' then
     return false
   end
-  if vim.tbl_isempty(cfg.captures) then
-    return false
-  end
   if not pcall(get_parser, bufnr) then
     return false
   end
@@ -122,8 +129,12 @@ local function on_win(_, _, bufnr)
   end
   local parser = get_parser(bufnr)
   local lang = parser:lang()
-  if not hl_queries[lang] then
-    hl_queries[lang] = query.get_query(lang, "highlights")
+  if not spell_queries[lang] then
+    -- Use the spell query if there is one available otherwise just
+    -- spellcheck comments using the comment capture in the highlight query
+    spell_queries[lang] =
+      query.get_query(lang, 'spell') or
+      query.get_query(lang, 'highlights')
   end
 
   -- FIXME: shouldn't be required. Possibly related to:
@@ -232,7 +243,6 @@ function M.setup(cfg_)
   cfg = cfg_ or {}
   cfg.hl = cfg.hl or 'SpellBad'
   cfg.hl_id = api.nvim_get_hl_id_by_name(cfg.hl)
-  cfg.captures = cfg.captures or {'comment'}
   cfg.spellchecker = cfg.spellchecker or 'vimfn'
 
   if not vim.tbl_contains(valid_spellcheckers, cfg.spellchecker) then

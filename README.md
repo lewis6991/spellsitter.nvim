@@ -61,7 +61,6 @@ the default settings:
 ```lua
 require('spellsitter').setup {
   hl = 'SpellBad',
-  captures = {'comment'},  -- set to {} to spellcheck everything
 
   -- Spellchecker to use. values:
   -- * vimfn: built-in spell checker using vim.fn.spellbadword()
