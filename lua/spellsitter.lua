@@ -10,6 +10,8 @@ local ns
 
 local marks = {}
 
+pcall(require, 'nvim-treesitter.query_predicates')
+
 if not vim.tbl_contains(query.list_predicates(), 'has-parent?') then
   -- Defined in nvim-treesitter so define it here if nvim-treesitter is not
   -- installed
