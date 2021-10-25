@@ -112,7 +112,11 @@ local function buf_enabled(bufnr)
   if pcall(api.nvim_buf_get_var, bufnr, 'current_syntax') then
     return false
   end
-  if excluded_filetypes[api.nvim_buf_get_option(bufnr, 'filetype')] then
+  local ft = vim.bo[bufnr].filetype
+  if excluded_filetypes[ft] then
+    return false
+  end
+  if cfg.enable ~= true and not vim.tbl_contains(cfg.enable, ft) then
     return false
   end
   if not api.nvim_buf_is_loaded(bufnr)
@@ -145,7 +149,7 @@ local function on_win(_, _, bufnr)
 end
 
 -- Quickly enable 'spell' when running mappings as spell.c explicitly checks for
--- it for much of its functionality.
+-- dqdqdw it for much of its functionality.
 M._wrap_map = function(key)
   if not vim.wo.spell then
     vim.wo.spell = true
@@ -254,6 +258,10 @@ function M.setup(cfg_)
   cfg.hl = cfg.hl or 'SpellBad'
   cfg.hl_id = api.nvim_get_hl_id_by_name(cfg.hl)
   cfg.spellchecker = cfg.spellchecker or 'vimfn'
+
+  if cfg.enable == nil then
+    cfg.enable = true
+  end
 
   if not vim.tbl_contains(valid_spellcheckers, cfg.spellchecker) then
     error(string.format('spellsitter: %s is not a valid spellchecker. Must be one of: %s',
