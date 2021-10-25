@@ -226,14 +226,22 @@ M.attach = vim.schedule_wrap(function(bufnr)
   for _, key in ipairs{
     'z=', 'zW', 'zg', 'zG', 'zw', 'zuW', 'zug', 'zuG', 'zuw'
   } do
-    api.nvim_buf_set_keymap(bufnr, 'n', key,
-      string.format([[v:lua.package.loaded.spellsitter._wrap_map('%s')]], key),
-      {expr=true}
-    )
+    if vim.fn.hasmapto(key, 'n') == 0 then
+      api.nvim_buf_set_keymap(bufnr, 'n', key,
+        string.format([[v:lua.package.loaded.spellsitter._wrap_map('%s')]], key),
+        {expr=true}
+      )
+    end
   end
 
-  api.nvim_buf_set_keymap(bufnr, 'n', ']s', [[<cmd>lua require'spellsitter'.nav()<cr>]], {})
-  api.nvim_buf_set_keymap(bufnr, 'n', '[s', [[<cmd>lua require'spellsitter'.nav(true)<cr>]], {})
+  if vim.fn.hasmapto(']s', 'n') == 0 then
+    api.nvim_buf_set_keymap(bufnr, 'n', ']s', [[<cmd>lua require'spellsitter'.nav()<cr>]], {})
+  end
+
+  if vim.fn.hasmapto('[s', 'n') == 0 then
+    api.nvim_buf_set_keymap(bufnr, 'n', '[s', [[<cmd>lua require'spellsitter'.nav(true)<cr>]], {})
+  end
+
   vim.wo.spell = false
 end)
 
