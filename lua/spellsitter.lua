@@ -101,10 +101,6 @@ local function on_line(_, winid, bufnr, lnum)
   end)
 end
 
-local excluded_filetypes = {
-  rst = true -- Just let the legacy spellchecker apply to the whole buffer
-}
-
 local function buf_enabled(bufnr)
   if not api.nvim_buf_is_loaded(bufnr) then
     return false
@@ -113,9 +109,6 @@ local function buf_enabled(bufnr)
     return false
   end
   local ft = vim.bo[bufnr].filetype
-  if excluded_filetypes[ft] then
-    return false
-  end
   if cfg.enable ~= true and not vim.tbl_contains(cfg.enable, ft) then
     return false
   end
