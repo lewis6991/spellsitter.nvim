@@ -1,4 +1,4 @@
-local query = vim.treesitter.query
+local query = require'vim.treesitter.query'
 local get_parser = vim.treesitter.get_parser
 
 local api = vim.api
