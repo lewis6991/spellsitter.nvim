@@ -68,7 +68,7 @@ local function on_line(_, winid, bufnr, lnum)
     end
 
     for id, node in spell_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
-      if spell_query.captures[id] == 'spell' then
+      if vim.tbl_contains({'spell', 'comment'}, spell_query.captures[id]) then
         local start_row, start_col, end_row, end_col = node:range()
         if lnum >= start_row and lnum <= end_row then
           -- This extracts the substring corresponding to the region we want to
@@ -122,6 +122,25 @@ local function buf_enabled(bufnr)
   return true
 end
 
+local function get_query(lang)
+  -- Use the spell query if there is one available otherwise just
+  -- spellcheck comments.
+  local lang_query = query.get_query(lang, 'spell')
+
+  if lang_query then
+    return lang_query
+  end
+
+  -- First fallback is to use the comment nodes, if defined
+  local ok, ret = pcall(query.parse_query, lang, "(comment)  @spell")
+  if ok then
+    return ret
+  end
+
+  -- Second fallback is to use comments from the highlight captures
+  return query.get_query(lang, 'highlights')
+end
+
 local function on_win(_, _, bufnr)
   if not buf_enabled(bufnr) then
     return false
@@ -129,11 +148,7 @@ local function on_win(_, _, bufnr)
   local parser = get_parser(bufnr)
   local lang = parser:lang()
   if not spell_queries[lang] then
-    -- Use the spell query if there is one available otherwise just
-    -- spellcheck comments.
-    spell_queries[lang] =
-      query.get_query(lang, 'spell') or
-      query.parse_query(lang, [[(comment) @spell]])
+    spell_queries[lang] = get_query(lang)
   end
 
   -- FIXME: shouldn't be required. Possibly related to:
