@@ -48,56 +48,58 @@ end
 
 local spell_queries = {}
 
+local function spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
+  local root_start_row, _, root_end_row, _ = root_node:range()
+
+  -- Only worry about trees within the line range
+  if root_start_row > lnum or root_end_row < lnum then
+    return
+  end
+
+  for id, node in spell_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
+    if vim.tbl_contains({'spell', 'comment'}, spell_query.captures[id]) then
+      local start_row, start_col, end_row, end_col = node:range()
+      if lnum >= start_row and lnum <= end_row then
+        -- This extracts the substring corresponding to the region we want to
+        -- spell check from the line. Since this is a lua function on the line
+        -- string, we need to convert the 0 indexed values of the columns, to 1
+        -- indexed values. Note here that the value of the end column is end
+        -- inclusive, so we need to increment it in addition to the start.
+        if lnum ~= start_row then
+          -- check from the start of this line
+          start_col = 1
+        else
+          start_col = start_col + 1;
+        end
+
+        if lnum ~= end_row then
+          -- check until the end of this line
+          end_col = -1
+        else
+          end_col = end_col + 1;
+        end
+
+        local line = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
+        local l = line:sub(start_col, end_col)
+        for col, len in spell_check_iter(l, winid) do
+          -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
+          add_extmark(bufnr, lnum, start_col + col - 1, len)
+        end
+      end
+    end
+  end
+end
+
 local function on_line(_, winid, bufnr, lnum)
   marks[bufnr] = marks[bufnr] or {}
   marks[bufnr][lnum+1] = nil
 
   local parser = get_parser(bufnr)
-
   local spell_query = spell_queries[parser:lang()]
-
-  local line = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
 
   parser:for_each_tree(function(tstree, _)
     local root_node = tstree:root()
-    local root_start_row, _, root_end_row, _ = root_node:range()
-
-    -- Only worry about trees within the line range
-    if root_start_row > lnum or root_end_row < lnum then
-      return
-    end
-
-    for id, node in spell_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
-      if vim.tbl_contains({'spell', 'comment'}, spell_query.captures[id]) then
-        local start_row, start_col, end_row, end_col = node:range()
-        if lnum >= start_row and lnum <= end_row then
-          -- This extracts the substring corresponding to the region we want to
-          -- spell check from the line. Since this is a lua function on the line
-          -- string, we need to convert the 0 indexed values of the columns, to 1
-          -- indexed values. Note here that the value of the end column is end
-          -- inclusive, so we need to increment it in addition to the start.
-          if lnum ~= start_row then
-            -- check from the start of this line
-            start_col = 1
-          else
-            start_col = start_col + 1;
-          end
-
-          if lnum ~= end_row then
-            -- check until the end of this line
-            end_col = -1
-          else
-            end_col = end_col + 1;
-          end
-
-          local l = line:sub(start_col, end_col)
-          for col, len in spell_check_iter(l, winid) do
-            -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
-            add_extmark(bufnr, lnum, start_col + col - 1, len)
-          end
-        end
-      end
-    end
+    spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
   end)
 end
 
