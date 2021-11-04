@@ -294,7 +294,7 @@ function M.setup(cfg_)
   vim.cmd[[
     augroup spellsitter
     autocmd!
-    autocmd BufRead,BufNew,BufNewFile * lua _G.package.loaded.spellsitter.attach()
+    autocmd FileType * lua _G.package.loaded.spellsitter.attach()
     augroup END
   ]]
 end
