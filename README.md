@@ -70,4 +70,4 @@ require('spellsitter').setup {
 
 ## Non-Goals
 
-* Support multple spellchecker backends.
+* Support external spellchecker backends.
