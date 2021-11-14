@@ -3,13 +3,7 @@
 [![CI](https://github.com/lewis6991/spellsitter.nvim/workflows/CI/badge.svg?branch=master)](https://github.com/lewis6991/spellsitter.nvim/actions?query=workflow%3ACI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Spell checker for Neovim powered by [tree-sitter](https://github.com/tree-sitter/tree-sitter).
-
-## Status
-**WIP**
-
-This plugin relies on Neovim's tree-sitter API which is still under development.
-Expect things to break sometimes but please don't hesitate to raise an issue.
+Enable Neovim's builtin spellchecker for buffers with tree-sitter highlighting.
 
 ## Requirements
 Neovim >= 0.5.0
@@ -73,3 +67,7 @@ require('spellsitter').setup {
   spellchecker = 'vimfn',
 }
 ```
+
+## Non-Goals
+
+* Support multple spellchecker backends.
