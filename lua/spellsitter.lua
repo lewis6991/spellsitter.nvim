@@ -123,7 +123,7 @@ local function on_line(_, winid, bufnr, lnum)
   local success, parser = pcall(get_parser)
 
   if not success then
-      return
+    return
   end
 
   parser:for_each_tree(function(tstree, langtree)
