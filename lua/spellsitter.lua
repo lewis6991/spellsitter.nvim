@@ -120,7 +120,7 @@ local function on_line(_, winid, bufnr, lnum)
   marks[bufnr] = marks[bufnr] or {}
   marks[bufnr][lnum+1] = nil
 
-  get_parser():for_each_tree(function(tstree, langtree)
+  get_parser(bufnr):for_each_tree(function(tstree, langtree)
     local root_node = tstree:root()
     local spell_query = get_query(langtree:lang())
     if spell_query then
