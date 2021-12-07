@@ -157,7 +157,11 @@ local function buf_enabled(bufnr)
   return true
 end
 
-local function on_win(_, _, bufnr)
+local function on_win(_, winid, bufnr)
+  if not vim.wo[winid].spell then
+    return false
+  end
+
   if not buf_enabled(bufnr) then
     return false
   end
@@ -236,19 +240,6 @@ M.attach = vim.schedule_wrap(function(bufnr)
     return false
   end
 
-  -- Not all these need to be wrapped but spell.c is pretty messy so wrap them
-  -- for good measure.
-  for _, key in ipairs{
-    'z=', 'zW', 'zg', 'zG', 'zw', 'zuW', 'zug', 'zuG', 'zuw'
-  } do
-    if vim.fn.hasmapto(key, 'n') == 0 then
-      api.nvim_buf_set_keymap(bufnr, 'n', key,
-        string.format([[v:lua.package.loaded.spellsitter._wrap_map('%s')]], key),
-        {expr=true}
-      )
-    end
-  end
-
   if vim.fn.hasmapto(']s', 'n') == 0 then
     api.nvim_buf_set_keymap(bufnr, 'n', ']s', [[<cmd>lua require'spellsitter'.nav()<cr>]], {})
   end
@@ -257,7 +248,14 @@ M.attach = vim.schedule_wrap(function(bufnr)
     api.nvim_buf_set_keymap(bufnr, 'n', '[s', [[<cmd>lua require'spellsitter'.nav(true)<cr>]], {})
   end
 
-  vim.wo.spell = false
+  -- HACK ALERT: To prevent the internal spellchecker from spellchecking, we
+  -- need to define a 'Spell' syntax group which contains nothing.
+  --
+  -- For whatever reason 'syntax clear' doesn't remove this group so we are safe
+  -- from treesitter reloading the buffer.
+  api.nvim_buf_call(bufnr, function()
+    vim.cmd'syntax cluster Spell contains=NONE'
+  end)
 end)
 
 function M.setup(user_config)
