@@ -39,6 +39,8 @@ describe('spellsitter', function()
       [8] = {bold = true, foreground = Screen.colors.Blue};
     })
 
+    command('set spell')
+
     exec_lua('package.path = ...', package.path)
   end)
 
@@ -49,12 +51,12 @@ describe('spellsitter', function()
   local function test_spellchecker(imp)
     describe(imp, function()
       it('spellcheck', function()
+        load_ts('test/dummy.c', 'c')
+
         exec_lua([[require("spellsitter").setup{
           hl = 'Error',
           spellchecker = ...
         }]], imp)
-
-        load_ts('test/dummy.c', 'c')
 
         screen:expect{grid=[[
           {1:^// spelling }{7:mstake}            |
@@ -121,12 +123,12 @@ describe('spellsitter', function()
 
       it('supports unicode', function()
         screen:try_resize(80, 3)
+        load_ts('test/unicode_chars.c', 'c')
+
         exec_lua([[require("spellsitter").setup{
           hl = 'Error',
           spellchecker = ...
         }]], imp)
-
-        load_ts('test/unicode_chars.c', 'c')
 
         screen:expect{grid=[[
           {1:^// “So, }{7:Hermione}{1:, when you are going to look for your parents in Australia?”}    |
