@@ -160,73 +160,63 @@ local function on_win(_, _, bufnr)
   get_parser(bufnr):parse()
 end
 
--- Quickly enable 'spell' when running mappings as spell.c explicitly checks for
--- dqdqdw it for much of its functionality.
-M._wrap_map = function(key)
-  if not vim.wo.spell then
-    vim.wo.spell = true
-    vim.schedule(function()
-      vim.wo.spell = false
-    end)
-  end
-  return key
-end
-
-M.nav = function(reverse)
+local get_nav_target = function(reverse)
   local bufnr = api.nvim_get_current_buf()
-  local target = (function()
-    -- This api uses a 1 based indexing for the rows (matching the row numbers
-    -- within the UI) and a 0 based indexing for columns.
-    local row, col = unpack(api.nvim_win_get_cursor(0))
 
-    marks[bufnr] = marks[bufnr] or {}
+  -- This api uses a 1 based indexing for the rows (matching the row numbers
+  -- within the UI) and a 0 based indexing for columns.
+  local row, col = unpack(api.nvim_win_get_cursor(0))
 
-    local bmarks = marks[bufnr]
+  marks[bufnr] = marks[bufnr] or {}
 
-    if reverse then
-      -- From the current row number to the start in reverse. Here we are
-      -- working with a 1 based indexing for the rows, hence the final value is
-      -- 1.
-      for i = row, 1, -1 do
-        -- Run on_line in case that line hasn't been drawn yet.
-        -- Here we are converting the 1 indexed values we have been using to a
-        -- 0 indexed value which the on_line function takes.
-        on_line(nil, 0, bufnr, i-1)
-        if bmarks[i] then
-          for j = #bmarks[i], 1, -1 do
-            local m = bmarks[i][j]
-            if i ~= row or col > m[1] then
-              -- We are using this directly as input to nvim_win_set_cursor,
-              -- which uses a 1 based index, so we set this with i rather than
-              -- row_num.
-              return {i, m[1]}
-            end
-          end
-        end
-      end
-    else
-      -- From the current row number to the end. Here we are working with 1
-      -- indexed values, so we go all the way to the last line of the file.
-      for i = row, vim.fn.line('$') do
-        -- Run on_line in case that line hasn't been drawn yet
-        -- Here we are converting the 1 indexed values we have been using to a
-        -- 0 indexed value which the on_line function takes.
-        on_line(nil, 0, bufnr, i-1)
-        if bmarks[i] then
-          for j = 1, #bmarks[i] do
-            local m = bmarks[i][j]
-            if i ~= row or col < m[1] then
-              -- We are using this directly as input to nvim_win_set_cursor,
-              -- which uses a 1 based index, so we set this with i rather than
-              -- row_num.
-              return {i, m[1]}
-            end
+  local bmarks = marks[bufnr]
+
+  if reverse then
+    -- From the current row number to the start in reverse. Here we are
+    -- working with a 1 based indexing for the rows, hence the final value is
+    -- 1.
+    for i = row, 1, -1 do
+      -- Run on_line in case that line hasn't been drawn yet.
+      -- Here we are converting the 1 indexed values we have been using to a
+      -- 0 indexed value which the on_line function takes.
+      on_line(nil, 0, bufnr, i-1)
+      if bmarks[i] then
+        for j = #bmarks[i], 1, -1 do
+          local m = bmarks[i][j]
+          if i ~= row or col > m[1] then
+            -- We are using this directly as input to nvim_win_set_cursor,
+            -- which uses a 1 based index, so we set this with i rather than
+            -- row_num.
+            return {i, m[1]}
           end
         end
       end
     end
-  end)()
+  else
+    -- From the current row number to the end. Here we are working with 1
+    -- indexed values, so we go all the way to the last line of the file.
+    for i = row, api.nvim_buf_line_count(bufnr) do
+      -- Run on_line in case that line hasn't been drawn yet
+      -- Here we are converting the 1 indexed values we have been using to a
+      -- 0 indexed value which the on_line function takes.
+      on_line(nil, 0, bufnr, i-1)
+      if bmarks[i] then
+        for j = 1, #bmarks[i] do
+          local m = bmarks[i][j]
+          if i ~= row or col < m[1] then
+            -- We are using this directly as input to nvim_win_set_cursor,
+            -- which uses a 1 based index, so we set this with i rather than
+            -- row_num.
+            return {i, m[1]}
+          end
+        end
+      end
+    end
+  end
+end
 
+M.nav = function(reverse)
+  local target = get_nav_target(reverse)
   if target then
     api.nvim_win_set_cursor(0, target)
   end
