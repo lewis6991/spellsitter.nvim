@@ -229,6 +229,7 @@ end
 M.nav = function(reverse)
   local target = get_nav_target(reverse)
   if target then
+    vim.cmd [[ normal! m' ]] -- add current cursor position to the jump list
     api.nvim_win_set_cursor(0, target)
   end
 end
