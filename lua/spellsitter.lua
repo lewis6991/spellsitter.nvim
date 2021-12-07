@@ -5,7 +5,14 @@ local api = vim.api
 
 local M = {}
 
-local cfg
+local valid_spellcheckers = {'vimfn', 'ffi'}
+
+local config = {
+  enable       = true,
+  hl           = 'SpellBad',
+  spellchecker = 'vimfn'
+}
+
 local ns
 
 local marks = {}
@@ -32,7 +39,7 @@ local function add_extmark(bufnr, lnum, col, len)
   local ok, _ = pcall(api.nvim_buf_set_extmark, bufnr, ns, lnum, col, {
     end_line = lnum,
     end_col = col+len,
-    hl_group = cfg.hl_id,
+    hl_group = config.hl_id,
     ephemeral = true
   })
 
@@ -137,7 +144,7 @@ local function buf_enabled(bufnr)
     return false
   end
   local ft = vim.bo[bufnr].filetype
-  if cfg.enable ~= true and not vim.tbl_contains(cfg.enable, ft) then
+  if config.enable ~= true and not vim.tbl_contains(config.enable, ft) then
     return false
   end
   if not api.nvim_buf_is_loaded(bufnr)
@@ -253,26 +260,18 @@ M.attach = vim.schedule_wrap(function(bufnr)
   vim.wo.spell = false
 end)
 
-local valid_spellcheckers = {'vimfn', 'ffi'}
+function M.setup(user_config)
+  config = vim.tbl_deep_extend('force', config, user_config or {})
+  config.hl_id = api.nvim_get_hl_id_by_name(config.hl)
 
-function M.setup(cfg_)
-  cfg = cfg_ or {}
-  cfg.hl = cfg.hl or 'SpellBad'
-  cfg.hl_id = api.nvim_get_hl_id_by_name(cfg.hl)
-  cfg.spellchecker = cfg.spellchecker or 'vimfn'
-
-  if cfg.enable == nil then
-    cfg.enable = true
-  end
-
-  if not vim.tbl_contains(valid_spellcheckers, cfg.spellchecker) then
+  if not vim.tbl_contains(valid_spellcheckers, config.spellchecker) then
     error(string.format('spellsitter: %s is not a valid spellchecker. Must be one of: %s',
-      cfg.spellchecker, table.concat(valid_spellcheckers, ', ')))
+      config.spellchecker, table.concat(valid_spellcheckers, ', ')))
   end
 
   ns = api.nvim_create_namespace('spellsitter')
 
-  spell_check_iter = require('spellsitter.spellcheck.'..cfg.spellchecker)
+  spell_check_iter = require('spellsitter.spellcheck.'..config.spellchecker)
 
   api.nvim_set_decoration_provider(ns, {
     on_win = on_win,
