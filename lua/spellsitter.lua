@@ -268,10 +268,8 @@ local try_attach = function(bufnr)
   --
   -- For whatever reason 'syntax clear' doesn't remove this group so we are safe
   -- from treesitter reloading the buffer.
-  vim.schedule(function()
-    api.nvim_buf_call(bufnr, function()
-      vim.cmd'syntax cluster Spell contains=NONE'
-    end)
+  api.nvim_buf_call(bufnr, function()
+    vim.cmd'syntax cluster Spell contains=NONE'
   end)
 end
 
@@ -285,10 +283,6 @@ local function on_win(_, winid, bufnr)
   end
 
   try_attach(bufnr)
-
-  -- FIXME: shouldn't be required. Possibly related to:
-  -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
-  get_parser(bufnr):parse()
 end
 
 function M.setup(user_config)
