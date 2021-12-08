@@ -244,9 +244,9 @@ M.nav = function(reverse)
 
   if not buf_enabled(bufnr) then
     if reverse then
-      vim.cmd'normal [s'
+      vim.cmd'normal! [s'
     else
-      vim.cmd'normal ]s'
+      vim.cmd'normal! ]s'
     end
     return
   end
