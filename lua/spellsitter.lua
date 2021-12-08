@@ -9,7 +9,6 @@ local valid_spellcheckers = {'vimfn', 'ffi'}
 
 local config = {
   enable       = true,
-  hl           = 'SpellBad',
   spellchecker = 'vimfn'
 }
 
@@ -32,14 +31,23 @@ end
 -- Main spell checking function
 local spell_check_iter
 
-local function add_extmark(bufnr, lnum, col, len)
+-- Cache for highlight_ids
+local highlight_ids = {}
+
+local function add_extmark(bufnr, lnum, col, len, highlight)
   -- TODO: This errors because of an out of bounds column when inserting
   -- newlines. Wrapping in pcall hides the issue.
+
+  local hl_id = highlight_ids[highlight]
+  if not hl_id then
+    hl_id = api.nvim_get_hl_id_by_name(highlight)
+    highlight_ids[highlight] = hl_id
+  end
 
   local ok, _ = pcall(api.nvim_buf_set_extmark, bufnr, ns, lnum, col, {
     end_line = lnum,
     end_col = col+len,
-    hl_group = config.hl_id,
+    hl_group = hl_id,
     ephemeral = true
   })
 
@@ -61,9 +69,10 @@ local function spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
     return
   end
 
-  for id, node in spell_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
+  for id, node, metadata in spell_query:iter_captures(root_node, bufnr, lnum, lnum+1) do
     if vim.tbl_contains({'spell', 'comment'}, spell_query.captures[id]) then
-      local start_row, start_col, end_row, end_col = node:range()
+      local range = metadata.content and metadata.content[1] or {node:range()}
+      local start_row, start_col, end_row, end_col = unpack(range)
       if lnum >= start_row and lnum <= end_row then
         -- This extracts the substring corresponding to the region we want to
         -- spell check from the line. Since this is a lua function on the line
@@ -86,9 +95,15 @@ local function spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
 
         local line = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
         local l = line:sub(start_col, end_col)
-        for col, len in spell_check_iter(l, winid) do
+        for col, len, type in spell_check_iter(l, winid) do
           -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
-          add_extmark(bufnr, lnum, start_col + col - 1, len)
+          local highlight = config.hl or ({
+            bad       = 'SpellBad',
+            caps      = 'SpellCap',
+            rare      = 'SpellRare',
+            ['local'] = 'SpellLocal',
+          })[type]
+          add_extmark(bufnr, lnum, start_col + col - 1, len, highlight)
         end
       end
     end
@@ -261,7 +276,6 @@ end)
 
 function M.setup(user_config)
   config = vim.tbl_deep_extend('force', config, user_config or {})
-  config.hl_id = api.nvim_get_hl_id_by_name(config.hl)
 
   if not vim.tbl_contains(valid_spellcheckers, config.spellchecker) then
     error(string.format('spellsitter: %s is not a valid spellchecker. Must be one of: %s',
