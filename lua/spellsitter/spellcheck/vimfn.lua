@@ -3,7 +3,7 @@ local function spell_check_iter(text, _)
 
   return function()
     while #text > 0 do
-      local word, _ = unpack(vim.fn.spellbadword(text))
+      local word, type = unpack(vim.fn.spellbadword(text))
       if word == '' then
         -- No bad words
         return
@@ -24,7 +24,7 @@ local function spell_check_iter(text, _)
 
       local len = mend - mstart + 1
 
-      return sum - len, len
+      return sum - len, len, type
     end
   end
 end

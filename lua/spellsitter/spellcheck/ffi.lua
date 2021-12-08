@@ -23,36 +23,29 @@ ffi.cdef[[
   char_u *did_set_spelllang(win_T *wp);
 ]]
 
-local capcol = ffi.new("int[1]", -1)
+local capcol_ptr = ffi.new("int[1]", -1)
 local hlf = ffi.new("hlf_T[1]", 0)
 
-local spell_check = function(win_handle, text)
+local spell_check = function(win_handle, text, capcol)
   hlf[0] = 0
-  capcol[0] = -1
-
-  local len
-  -- FIXME: Spell check can segfault on strings that begin with punctuation.
-  -- Probably a bug in the C function.
-  local leading_punc = text:match('^%p+')
-  if leading_punc then
-    len = #leading_punc
-  else
-    len = tonumber(ffi.C.spell_check(win_handle, text, hlf, capcol, false))
-  end
-
-  return len, tonumber(hlf[0])
+  capcol_ptr[0] = capcol
+  local len = tonumber(ffi.C.spell_check(win_handle, text, hlf, capcol_ptr, false))
+  return len, tonumber(hlf[0]), tonumber(capcol_ptr[0])
 end
 
-local HLF_SPB
-local HLF_SPR
-local HLF_SPL
+local HLF_SPB -- SpellBad
+local HLF_SPC -- SpellCap
+local HLF_SPR -- SpellRare
+local HLF_SPL -- SpellLocal
 
 if vim.version().minor == 5 then
   HLF_SPB = 30
+  HLF_SPC = 31
   HLF_SPR = 32
   HLF_SPL = 33
 else
   HLF_SPB = 32
+  HLF_SPC = 33
   HLF_SPR = 34
   HLF_SPL = 35
 end
@@ -79,16 +72,28 @@ local function spell_check_iter(text, winid)
   local w = ffi.C.find_window_by_handle(winid, err)
 
   local sum = 0
+  local capcol = 0
 
   return function()
+    local len, res
     while #text > 0 do
-      local len, res = spell_check(w, text)
+      len, res, capcol = spell_check(w, text, capcol)
+      if capcol > 0 then
+        capcol = capcol - len
+      end
 
       text = text:sub(len+1, -1)
       sum = sum + len
 
-      if res == HLF_SPB or res == HLF_SPR or res == HLF_SPL then
-        return sum - len, len
+      local type = ({
+        [HLF_SPB] = 'bad',
+        [HLF_SPC] = 'caps',
+        [HLF_SPR] = 'rare',
+        [HLF_SPL] = 'local'
+      })[res]
+
+      if type then
+        return sum - len, len, type
       end
     end
   end
