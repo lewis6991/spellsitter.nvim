@@ -5,15 +5,13 @@ local api = vim.api
 
 local M = {}
 
-local valid_spellcheckers = {'vimfn', 'ffi'}
-
 local config = {
   enable       = true,
   spellchecker = 'vimfn'
 }
 
 local ns
-
+local attached = {}
 local marks = {}
 
 pcall(require, 'nvim-treesitter.query_predicates')
@@ -238,8 +236,6 @@ M.nav = function(reverse)
   end
 end
 
-local attached = {}
-
 local try_attach = function(bufnr)
   if attached[bufnr] then
     return
@@ -287,6 +283,8 @@ end
 
 function M.setup(user_config)
   config = vim.tbl_deep_extend('force', config, user_config or {})
+
+  local valid_spellcheckers = {'vimfn', 'ffi'}
 
   if not vim.tbl_contains(valid_spellcheckers, config.spellchecker) then
     error(string.format('spellsitter: %s is not a valid spellchecker. Must be one of: %s',
