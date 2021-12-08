@@ -186,9 +186,7 @@ local function on_win(_, winid, bufnr)
   get_parser(bufnr):parse()
 end
 
-local get_nav_target = function(reverse)
-  local bufnr = api.nvim_get_current_buf()
-
+local get_nav_target = function(bufnr, reverse)
   -- This api uses a 1 based indexing for the rows (matching the row numbers
   -- within the UI) and a 0 based indexing for columns.
   local row, col = unpack(api.nvim_win_get_cursor(0))
@@ -242,7 +240,18 @@ local get_nav_target = function(reverse)
 end
 
 M.nav = function(reverse)
-  local target = get_nav_target(reverse)
+  local bufnr = api.nvim_get_current_buf()
+
+  if not buf_enabled(bufnr) then
+    if reverse then
+      vim.cmd'normal [s'
+    else
+      vim.cmd'normal ]s'
+    end
+    return
+  end
+
+  local target = get_nav_target(bufnr, reverse)
   if target then
     vim.cmd [[ normal! m' ]] -- add current cursor position to the jump list
     api.nvim_win_set_cursor(0, target)
