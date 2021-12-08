@@ -258,7 +258,7 @@ M.nav = function(reverse)
   end
 end
 
-M.attach = vim.schedule_wrap(function(bufnr)
+M.attach = function(bufnr)
   bufnr = bufnr or api.nvim_get_current_buf()
 
   if not buf_enabled(bufnr) then
@@ -278,10 +278,12 @@ M.attach = vim.schedule_wrap(function(bufnr)
   --
   -- For whatever reason 'syntax clear' doesn't remove this group so we are safe
   -- from treesitter reloading the buffer.
-  api.nvim_buf_call(bufnr, function()
-    vim.cmd'syntax cluster Spell contains=NONE'
+  vim.schedule(function()
+    api.nvim_buf_call(bufnr, function()
+      vim.cmd'syntax cluster Spell contains=NONE'
+    end)
   end)
-end)
+end
 
 function M.setup(user_config)
   config = vim.tbl_deep_extend('force', config, user_config or {})
