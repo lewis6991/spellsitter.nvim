@@ -54,11 +54,8 @@ local function add_extmark(bufnr, lnum, col, len, highlight)
   if not ok then
     print(('ERROR: Failed to add extmark, lnum=%d pos=%d'):format(lnum, col))
   end
-  local lnum1 = lnum+1
-  marks[bufnr] = marks[bufnr] or {}
-  marks[bufnr][lnum1] = marks[bufnr][lnum1] or {}
-  local lbmarks = marks[bufnr][lnum1]
-  lbmarks[#lbmarks+1] = {col, col+len}
+
+  table.insert(marks[bufnr][lnum+1], {col, col+len})
 end
 
 local function spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
@@ -139,8 +136,7 @@ local function get_query(lang)
 end
 
 local function on_line(_, winid, bufnr, lnum)
-  marks[bufnr] = marks[bufnr] or {}
-  marks[bufnr][lnum+1] = nil
+  marks[bufnr][lnum+1] = {}
 
   get_parser(bufnr):for_each_tree(function(tstree, langtree)
     local root_node = tstree:root()
@@ -184,14 +180,16 @@ local function on_win(_, winid, bufnr)
   -- FIXME: shouldn't be required. Possibly related to:
   -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
   get_parser(bufnr):parse()
+
+  if not marks[bufnr] then
+    marks[bufnr] = {}
+  end
 end
 
 local get_nav_target = function(bufnr, reverse)
   -- This api uses a 1 based indexing for the rows (matching the row numbers
   -- within the UI) and a 0 based indexing for columns.
   local row, col = unpack(api.nvim_win_get_cursor(0))
-
-  marks[bufnr] = marks[bufnr] or {}
 
   local bmarks = marks[bufnr]
 
