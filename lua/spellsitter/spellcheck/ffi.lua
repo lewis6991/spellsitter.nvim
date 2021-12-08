@@ -29,7 +29,19 @@ local hlf = ffi.new("hlf_T[1]", 0)
 local spell_check = function(win_handle, text, capcol)
   hlf[0] = 0
   capcol_ptr[0] = capcol
-  local len = tonumber(ffi.C.spell_check(win_handle, text, hlf, capcol_ptr, false))
+
+  -- FIXME: Spell check can segfault on strings that begin with punctuation.
+  -- Probably a bug in the C function.
+  local leading_punc = text:match('^%p+')
+  local len
+  if leading_punc and #leading_punc > 1 then
+    -- only apply for more than 1 punctuation so cap check still works
+    len = #leading_punc - 1
+  else
+    len = tonumber(ffi.C.spell_check(win_handle, text, hlf, capcol_ptr, false))
+  end
+
+  -- local len = tonumber(ffi.C.spell_check(win_handle, text, hlf, capcol_ptr, false))
   return len, tonumber(hlf[0]), tonumber(capcol_ptr[0])
 end
 
