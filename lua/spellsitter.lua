@@ -168,24 +168,6 @@ local function buf_enabled(bufnr)
   return true
 end
 
-local function on_win(_, winid, bufnr)
-  if not vim.wo[winid].spell then
-    return false
-  end
-
-  if not buf_enabled(bufnr) then
-    return false
-  end
-
-  -- FIXME: shouldn't be required. Possibly related to:
-  -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
-  get_parser(bufnr):parse()
-
-  if not marks[bufnr] then
-    marks[bufnr] = {}
-  end
-end
-
 local get_nav_target = function(bufnr, reverse)
   -- This api uses a 1 based indexing for the rows (matching the row numbers
   -- within the UI) and a 0 based indexing for columns.
@@ -256,12 +238,22 @@ M.nav = function(reverse)
   end
 end
 
-M.attach = function(bufnr)
-  bufnr = bufnr or api.nvim_get_current_buf()
+local attached = {}
 
-  if not buf_enabled(bufnr) then
-    return false
+local try_attach = function(bufnr)
+  if attached[bufnr] then
+    return
   end
+
+  attached[bufnr] = true
+  marks[bufnr] = {}
+
+  api.nvim_buf_attach(bufnr, false, {
+    on_detach = function(_, buf)
+      attached[buf] = nil
+      marks[buf] = nil
+    end
+  })
 
   if vim.fn.hasmapto(']s', 'n') == 0 then
     api.nvim_buf_set_keymap(bufnr, 'n', ']s', [[<cmd>lua require'spellsitter'.nav()<cr>]], {})
@@ -283,6 +275,22 @@ M.attach = function(bufnr)
   end)
 end
 
+local function on_win(_, winid, bufnr)
+  if not vim.wo[winid].spell then
+    return false
+  end
+
+  if not buf_enabled(bufnr) then
+    return false
+  end
+
+  try_attach(bufnr)
+
+  -- FIXME: shouldn't be required. Possibly related to:
+  -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
+  get_parser(bufnr):parse()
+end
+
 function M.setup(user_config)
   config = vim.tbl_deep_extend('force', config, user_config or {})
 
@@ -299,17 +307,6 @@ function M.setup(user_config)
     on_win = on_win,
     on_line = on_line,
   })
-
-  for _, buf in ipairs(api.nvim_list_bufs()) do
-    M.attach(buf)
-  end
-
-  vim.cmd[[
-    augroup spellsitter
-    autocmd!
-    autocmd FileType * lua _G.package.loaded.spellsitter.attach()
-    augroup END
-  ]]
 end
 
 return M
