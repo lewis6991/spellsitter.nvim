@@ -5,15 +5,13 @@ local api = vim.api
 
 local M = {}
 
-local valid_spellcheckers = {'vimfn', 'ffi'}
-
 local config = {
   enable       = true,
   spellchecker = 'vimfn'
 }
 
 local ns
-
+local attached = {}
 local marks = {}
 
 pcall(require, 'nvim-treesitter.query_predicates')
@@ -54,11 +52,8 @@ local function add_extmark(bufnr, lnum, col, len, highlight)
   if not ok then
     print(('ERROR: Failed to add extmark, lnum=%d pos=%d'):format(lnum, col))
   end
-  local lnum1 = lnum+1
-  marks[bufnr] = marks[bufnr] or {}
-  marks[bufnr][lnum1] = marks[bufnr][lnum1] or {}
-  local lbmarks = marks[bufnr][lnum1]
-  lbmarks[#lbmarks+1] = {col, col+len}
+
+  table.insert(marks[bufnr][lnum+1], {col, col+len})
 end
 
 local function spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
@@ -139,8 +134,7 @@ local function get_query(lang)
 end
 
 local function on_line(_, winid, bufnr, lnum)
-  marks[bufnr] = marks[bufnr] or {}
-  marks[bufnr][lnum+1] = nil
+  marks[bufnr][lnum+1] = {}
 
   get_parser(bufnr):for_each_tree(function(tstree, langtree)
     local root_node = tstree:root()
@@ -151,19 +145,15 @@ local function on_line(_, winid, bufnr, lnum)
   end)
 end
 
-local function buf_enabled(bufnr)
-  if not api.nvim_buf_is_loaded(bufnr) then
+local function enabled(bufnr, winid)
+  if not vim.wo[winid].spell then
     return false
   end
-  if pcall(api.nvim_buf_get_var, bufnr, 'current_syntax') then
+  if not vim.treesitter.highlighter.active[bufnr] then
     return false
   end
   local ft = vim.bo[bufnr].filetype
   if config.enable ~= true and not vim.tbl_contains(config.enable, ft) then
-    return false
-  end
-  if not api.nvim_buf_is_loaded(bufnr)
-    or api.nvim_buf_get_option(bufnr, 'buftype') ~= '' then
     return false
   end
   if not pcall(get_parser, bufnr) then
@@ -172,26 +162,10 @@ local function buf_enabled(bufnr)
   return true
 end
 
-local function on_win(_, winid, bufnr)
-  if not vim.wo[winid].spell then
-    return false
-  end
-
-  if not buf_enabled(bufnr) then
-    return false
-  end
-
-  -- FIXME: shouldn't be required. Possibly related to:
-  -- https://github.com/nvim-treesitter/nvim-treesitter/issues/1124
-  get_parser(bufnr):parse()
-end
-
 local get_nav_target = function(bufnr, reverse)
   -- This api uses a 1 based indexing for the rows (matching the row numbers
   -- within the UI) and a 0 based indexing for columns.
   local row, col = unpack(api.nvim_win_get_cursor(0))
-
-  marks[bufnr] = marks[bufnr] or {}
 
   local bmarks = marks[bufnr]
 
@@ -241,8 +215,9 @@ end
 
 M.nav = function(reverse)
   local bufnr = api.nvim_get_current_buf()
+  local winid = api.nvim_get_current_win()
 
-  if not buf_enabled(bufnr) then
+  if not enabled(bufnr, winid) then
     if reverse then
       vim.cmd'normal! [s'
     else
@@ -258,12 +233,21 @@ M.nav = function(reverse)
   end
 end
 
-M.attach = vim.schedule_wrap(function(bufnr)
-  bufnr = bufnr or api.nvim_get_current_buf()
-
-  if not buf_enabled(bufnr) then
-    return false
+local try_attach = function(bufnr)
+  if attached[bufnr] then
+    -- Already attached
+    return
   end
+
+  attached[bufnr] = true
+  marks[bufnr] = {}
+
+  api.nvim_buf_attach(bufnr, false, {
+    on_detach = function(_, buf)
+      attached[buf] = nil
+      marks[buf] = nil
+    end
+  })
 
   if vim.fn.hasmapto(']s', 'n') == 0 then
     api.nvim_buf_set_keymap(bufnr, 'n', ']s', [[<cmd>lua require'spellsitter'.nav()<cr>]], {})
@@ -281,10 +265,20 @@ M.attach = vim.schedule_wrap(function(bufnr)
   api.nvim_buf_call(bufnr, function()
     vim.cmd'syntax cluster Spell contains=NONE'
   end)
-end)
+end
+
+local function on_win(_, winid, bufnr)
+  if not enabled(bufnr, winid) then
+    return false
+  end
+
+  try_attach(bufnr)
+end
 
 function M.setup(user_config)
   config = vim.tbl_deep_extend('force', config, user_config or {})
+
+  local valid_spellcheckers = {'vimfn', 'ffi'}
 
   if not vim.tbl_contains(valid_spellcheckers, config.spellchecker) then
     error(string.format('spellsitter: %s is not a valid spellchecker. Must be one of: %s',
@@ -299,17 +293,6 @@ function M.setup(user_config)
     on_win = on_win,
     on_line = on_line,
   })
-
-  for _, buf in ipairs(api.nvim_list_bufs()) do
-    M.attach(buf)
-  end
-
-  vim.cmd[[
-    augroup spellsitter
-    autocmd!
-    autocmd FileType * lua _G.package.loaded.spellsitter.attach()
-    augroup END
-  ]]
 end
 
 return M
