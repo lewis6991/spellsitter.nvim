@@ -7,8 +7,7 @@ local api = vim.api
 local M = {}
 
 local config = {
-  enable       = true,
-  spellchecker = 'vimfn'
+  enable = true,
 }
 
 local ns
@@ -27,8 +26,41 @@ if not vim.tbl_contains(query.list_predicates(), 'has-parent?') then
   end)
 end
 
+local highlights = {
+  bad       = 'SpellBad',
+  caps      = 'SpellCap',
+  rare      = 'SpellRare',
+  ['local'] = 'SpellLocal',
+}
+
 -- Main spell checking function
-local spell_check_iter
+local function spell_check(text)
+  local sum = 0
+
+  local res = {}
+  while #text > 0 do
+    local word, type = unpack(vim.fn.spellbadword(text))
+    if word == '' then
+      -- No bad words
+      return {}
+    end
+
+    -- spellbadword() doesn't tell us the location of the bad word so we need
+    -- to find it ourselves.
+    local mstart, mend = text:find('%f[%w]'..word..'%f[%W]')
+    if mstart then
+      -- shift out the text up-to the end of the bad word we just found
+      text = text:sub(mend+1)
+      sum = sum + mend
+
+      local len = mend - mstart + 1
+
+      res[#res+1] = { sum - len, len, type }
+    end
+  end
+
+  return res
+end
 
 -- Cache for highlight_ids
 local highlight_ids = {}
@@ -57,7 +89,7 @@ local function add_extmark(bufnr, lnum, col, len, highlight)
   table.insert(marks[bufnr][lnum+1], {col, col+len})
 end
 
-local function spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
+local function spellcheck_tree(_, bufnr, lnum, root_node, spell_query)
   local root_start_row, _, root_end_row, _ = root_node:range()
 
   -- Only worry about trees within the line range
@@ -91,16 +123,24 @@ local function spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
 
         local line = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
         local l = line:sub(start_col, end_col)
-        for col, len, type in spell_check_iter(l, winid) do
-          -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
-          local highlight = config.hl or ({
-            bad       = 'SpellBad',
-            caps      = 'SpellCap',
-            rare      = 'SpellRare',
-            ['local'] = 'SpellLocal',
-          })[type]
-          add_extmark(bufnr, lnum, start_col + col - 1, len, highlight)
-        end
+        api.nvim_buf_call(bufnr, function()
+          if vim.spell then
+            for _, r in ipairs(vim.spell.check(l)) do
+              local word, type, col = unpack(r)
+              col = col - 1
+              -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
+              local highlight = config.hl or highlights[type]
+              add_extmark(bufnr, lnum, start_col + col - 1, #word, highlight)
+            end
+          else
+            for _, r in ipairs(spell_check(l)) do
+              local col, len, type = unpack(r)
+              -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
+              local highlight = config.hl or highlights[type]
+              add_extmark(bufnr, lnum, start_col + col - 1, len, highlight)
+            end
+          end
+        end)
       end
     end
   end
@@ -279,16 +319,7 @@ end
 function M.setup(user_config)
   config = vim.tbl_deep_extend('force', config, user_config or {})
 
-  local valid_spellcheckers = {'vimfn', 'ffi'}
-
-  if not vim.tbl_contains(valid_spellcheckers, config.spellchecker) then
-    error(string.format('spellsitter: %s is not a valid spellchecker. Must be one of: %s',
-      config.spellchecker, table.concat(valid_spellcheckers, ', ')))
-  end
-
   ns = api.nvim_create_namespace('spellsitter')
-
-  spell_check_iter = require('spellsitter.spellcheck.'..config.spellchecker)
 
   api.nvim_set_decoration_provider(ns, {
     on_win = on_win,
