@@ -1,0 +1,1 @@
+(paragraph_segment) @spell
