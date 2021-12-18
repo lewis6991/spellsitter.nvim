@@ -1,5 +1,6 @@
 local query = require'vim.treesitter.query'
 local get_parser = vim.treesitter.get_parser
+local highlighter = vim.treesitter.highlighter
 
 local api = vim.api
 
@@ -149,10 +150,7 @@ local function enabled(bufnr, winid)
   if not vim.wo[winid].spell then
     return false
   end
-  if vim.treesitter ~= nil then
-    return false
-  end
-  if not vim.treesitter.highlighter.active[bufnr] then
+  if not highlighter.active[bufnr] then
     return false
   end
   local ft = vim.bo[bufnr].filetype
