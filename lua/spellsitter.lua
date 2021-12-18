@@ -149,6 +149,9 @@ local function enabled(bufnr, winid)
   if not vim.wo[winid].spell then
     return false
   end
+  if vim.treesitter ~= nil then
+    return false
+  end
   if not vim.treesitter.highlighter.active[bufnr] then
     return false
   end
