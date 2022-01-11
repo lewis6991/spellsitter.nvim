@@ -47,16 +47,19 @@ local function spell_check(text)
 
     -- spellbadword() doesn't tell us the location of the bad word so we need
     -- to find it ourselves.
-    local mstart, mend = text:find('%f[%w]'..word..'%f[%W]')
-    if mstart then
-      -- shift out the text up-to the end of the bad word we just found
-      text = text:sub(mend+1)
-      sum = sum + mend
-
-      local len = mend - mstart + 1
-
-      res[#res+1] = { sum - len, len, type }
+    local mstart, mend = text:find('%f[%w]'..vim.pesc(word)..'%f[%W]')
+    if not mstart then
+      -- Fallback, maybe incorrect
+      mstart, mend = text:find(vim.pesc(word))
     end
+
+    -- shift out the text up-to the end of the bad word we just found
+    text = text:sub(mend+1)
+    sum = sum + mend
+
+    local len = mend - mstart + 1
+
+    res[#res+1] = { sum - len, len, type }
   end
 
   return res
@@ -124,7 +127,7 @@ local function spellcheck_tree(_, bufnr, lnum, root_node, spell_query)
         local line = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
         local l = line:sub(start_col, end_col)
         api.nvim_buf_call(bufnr, function()
-          if vim.spell then
+          if false and vim.spell then
             for _, r in ipairs(vim.spell.check(l)) do
               local word, type, col = unpack(r)
               col = col - 1
