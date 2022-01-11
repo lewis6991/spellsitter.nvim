@@ -42,7 +42,7 @@ local function spell_check(text)
     local word, type = unpack(vim.fn.spellbadword(text))
     if word == '' then
       -- No bad words
-      return {}
+      return res
     end
 
     -- spellbadword() doesn't tell us the location of the bad word so we need
