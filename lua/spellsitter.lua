@@ -127,7 +127,7 @@ local function spellcheck_tree(_, bufnr, lnum, root_node, spell_query)
         local line = api.nvim_buf_get_lines(bufnr, lnum, lnum+1, true)[1]
         local l = line:sub(start_col, end_col)
         api.nvim_buf_call(bufnr, function()
-          if false and vim.spell then
+          if vim.spell then
             for _, r in ipairs(vim.spell.check(l)) do
               local word, type, col = unpack(r)
               col = col - 1
