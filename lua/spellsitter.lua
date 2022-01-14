@@ -300,21 +300,20 @@ local try_attach = function(bufnr)
   if vim.fn.hasmapto('[s', 'n') == 0 then
     api.nvim_buf_set_keymap(bufnr, 'n', '[s', [[<cmd>lua require'spellsitter'.nav(true)<cr>]], {})
   end
-
-  -- HACK ALERT: To prevent the internal spellchecker from spellchecking, we
-  -- need to define a 'Spell' syntax group which contains nothing.
-  --
-  -- For whatever reason 'syntax clear' doesn't remove this group so we are safe
-  -- from treesitter reloading the buffer.
-  api.nvim_buf_call(bufnr, function()
-    vim.cmd'syntax cluster Spell contains=NONE'
-  end)
 end
 
 local function on_win(_, winid, bufnr)
   if not enabled(bufnr, winid) then
     return false
   end
+
+  -- HACK ALERT: To prevent the internal spellchecker from spellchecking, we
+  -- need to define a 'Spell' syntax group which contains nothing.
+  api.nvim_win_call(winid, function()
+    if vim.fn.has('syntax_items') == 0 then
+      vim.cmd'syntax cluster Spell contains=NONE'
+    end
+  end)
 
   try_attach(bufnr)
 end
