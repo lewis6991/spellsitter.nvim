@@ -72,6 +72,11 @@ local function add_extmark(bufnr, lnum, col, len, highlight)
   -- TODO: This errors because of an out of bounds column when inserting
   -- newlines. Wrapping in pcall hides the issue.
 
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  if vim.fn.mode() == 'i' and cursor[1]-1 == lnum and col <= cursor[2] and col+len >= cursor[2] then
+    return
+  end
+
   local hl_id = highlight_ids[highlight]
   if not hl_id then
     hl_id = api.nvim_get_hl_id_by_name(highlight)
