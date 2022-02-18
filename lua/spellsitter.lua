@@ -147,7 +147,7 @@ local function spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
               local col, len, type = unpack(r)
               -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
               local highlight = config.hl or highlights[type]
-              add_extmark(bufnr, lnum, start_col + col - 1, len, highlight)
+              add_extmark(winid, bufnr, lnum, start_col + col - 1, len, highlight)
             end
           end
         end)
