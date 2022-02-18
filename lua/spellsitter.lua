@@ -68,13 +68,15 @@ end
 -- Cache for highlight_ids
 local highlight_ids = {}
 
-local function add_extmark(bufnr, lnum, col, len, highlight)
+local function add_extmark(winid, bufnr, lnum, col, len, highlight)
   -- TODO: This errors because of an out of bounds column when inserting
   -- newlines. Wrapping in pcall hides the issue.
 
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  if vim.fn.mode() == 'i' and cursor[1]-1 == lnum and col <= cursor[2] and col+len >= cursor[2] then
-    return
+  local cur_lnum, cur_col = unpack(api.nvim_win_get_cursor(winid))
+  if cur_lnum-1 == lnum and col <= cur_col and col+len >= cur_col then
+    if api.nvim_get_mode().mode == 'i' then
+      return
+    end
   end
 
   local hl_id = highlight_ids[highlight]
@@ -97,7 +99,7 @@ local function add_extmark(bufnr, lnum, col, len, highlight)
   table.insert(marks[bufnr][lnum+1], {col, col+len})
 end
 
-local function spellcheck_tree(_, bufnr, lnum, root_node, spell_query)
+local function spellcheck_tree(winid, bufnr, lnum, root_node, spell_query)
   local root_start_row, _, root_end_row, _ = root_node:range()
 
   -- Only worry about trees within the line range
@@ -138,7 +140,7 @@ local function spellcheck_tree(_, bufnr, lnum, root_node, spell_query)
               col = col - 1
               -- start_col is now 1 indexed, so subtract one to make it 0 indexed again
               local highlight = config.hl or highlights[type]
-              add_extmark(bufnr, lnum, start_col + col - 1, #word, highlight)
+              add_extmark(winid, bufnr, lnum, start_col + col - 1, #word, highlight)
             end
           else
             for _, r in ipairs(spell_check(l)) do
