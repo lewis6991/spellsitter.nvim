@@ -5,6 +5,18 @@
 
 Enable Neovim's builtin spellchecker for buffers with tree-sitter highlighting.
 
+## What this plugin does
+
+With `set spell`:
+
+| Settings   | Result   |
+| ------------- | ------------- |
+| `syntax off`, Treesitter disabled  |  ![syntax off no treesitter](https://user-images.githubusercontent.com/7904185/160659719-bace62c4-eb62-4b10-a71b-2dcbf316518f.png) |
+| `syntax on`, Treesitter disabled  | ![syntax_on_no_treesitter](https://user-images.githubusercontent.com/7904185/160659792-642f56be-48b9-47e5-8481-9f716e8d51ed.png) |
+| Treesitter enabled | ![ts_no_spellsitter](https://user-images.githubusercontent.com/7904185/160659878-2af00775-ecdd-4a6c-b2f7-dcdc0f164e93.png) |
+| Treesitter (with spellsitter), | ![ts_plus_spellsitter](https://user-images.githubusercontent.com/7904185/160660021-38927f03-5669-4425-a17a-053a2614d355.png) |
+
+
 ## Requirements
 Neovim >= 0.5.0
 
