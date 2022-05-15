@@ -11,8 +11,12 @@ local config = {
   enable = true,
 }
 
+local ft_to_parsername = {
+  tex = 'latex'
+}
+
 local function ft_to_parser(ft)
-  return has_parsers and parsers.ft_to_lang(ft) or ft
+  return has_parsers and parsers.ft_to_lang(ft) or ft_to_parsername[ft] or ft
 end
 
 local ns
