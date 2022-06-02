@@ -1,6 +1,7 @@
 local query = require'vim.treesitter.query'
 local get_parser = vim.treesitter.get_parser
 local highlighter = vim.treesitter.highlighter
+local has_parsers, parsers = pcall(require, 'nvim-treesitter.parsers')
 
 local api = vim.api
 
@@ -9,6 +10,14 @@ local M = {}
 local config = {
   enable = true,
 }
+
+local ft_to_parsername = {
+  tex = 'latex'
+}
+
+local function ft_to_parser(ft)
+  return has_parsers and parsers.ft_to_lang(ft) or ft_to_parsername[ft] or ft
+end
 
 local ns
 local attached = {}
@@ -187,7 +196,9 @@ end
 local function on_line(_, winid, bufnr, lnum)
   marks[bufnr][lnum+1] = {}
 
-  get_parser(bufnr):for_each_tree(function(tstree, langtree)
+  local ft = vim.bo[bufnr].filetype
+  local parser = ft_to_parser(ft)
+  get_parser(bufnr, parser):for_each_tree(function(tstree, langtree)
     local root_node = tstree:root()
     local spell_query = get_query(langtree:lang())
     if spell_query then
@@ -207,7 +218,8 @@ local function enabled(bufnr, winid)
   if config.enable ~= true and not vim.tbl_contains(config.enable, ft) then
     return false
   end
-  if not pcall(get_parser, bufnr) then
+  local parser = ft_to_parser(ft)
+  if not pcall(get_parser, bufnr, parser) then
     return false
   end
   return true
