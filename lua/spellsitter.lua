@@ -9,6 +9,7 @@ local M = {}
 
 local config = {
   enable = true,
+  debug = false
 }
 
 local ft_to_parsername = {
@@ -101,7 +102,7 @@ local function add_extmark(winid, bufnr, lnum, col, len, highlight)
     ephemeral = true
   })
 
-  if not ok then
+  if config.debug and not ok then
     print(('ERROR: Failed to add extmark, lnum=%d pos=%d'):format(lnum, col))
   end
 
