@@ -83,6 +83,18 @@ require('spellsitter').setup {
 }
 ```
 
+## Languages Supported
+
+Spellsitter uses several methods for looking for spelling regions:
+
+1. It first looks for a specific spell query file. These can be found [here](https://github.com/lewis6991/spellsitter.nvim/tree/master/queries).
+
+2. If there is no language specific spell query file available, then Spellsitter will try to define an inline query to capture `comment` nodes. As some parsers don't have this specific node name (some have `comment_block`, `inline_comment`, etc), then this might fail.
+
+3. Finally Spellsitter will load the highlights query which [nvim-treesitter] defines for most languages. From this Spellsitter will use the `@comment` capture. This is a standard capture name (as it maps to the `TSComment` highlight), so this should always succeeds, but the same time provides the most limited spellchecking experience.
+
+If you want better spellchecking support for a specific language then please open a pull request adding a spell query file for said language.
+
 ## Non-Goals
 
 * Support external spellchecker backends.
