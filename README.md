@@ -22,7 +22,7 @@ Neovim >= 0.5.0
 
 ## Installation
 
-[packer.nvim](https://github.com/wbthomason/packer.nvim):
+[packer.nvim]:
 ```lua
 use {
   -- Optional but recommended
@@ -38,9 +38,7 @@ use {
 Plug 'lewis6991/spellsitter.nvim'
 ```
 
-Note: This plugin does not depend on
-[nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter)
-however it is recommended in order to easily install tree-sitter parsers.
+**NOTE**: This plugin does not depend on [nvim-treesitter] however it is recommended in order to easily install tree-sitter parsers.
 
 ## Usage
 
@@ -49,7 +47,7 @@ For basic setup with all batteries included:
 require('spellsitter').setup()
 ```
 
-If using [packer.nvim](https://github.com/wbthomason/packer.nvim) spellsitter can
+If using [packer.nvim] spellsitter can
 be setup directly in the plugin spec:
 
 ```lua
@@ -60,6 +58,19 @@ use {
   end
 }
 ```
+
+**NOTE**: If you are running this with [nvim-treesitter] (which will be 99% of users), then you must make sure `additional_vim_regex_highlighting` is either not set or disabled. Enabling this option will likely break this plugin. Example:
+
+```lua
+require'nvim-treesitter.configs'.setup {
+  highlight = {
+    enable = true,
+    -- additional_vim_regex_highlighting = true, -- DO NOT SET THIS
+  },
+}
+```
+
+## Configuration
 
 Configuration can be passed to the setup function. Here is an example with all
 the default settings:
@@ -75,3 +86,6 @@ require('spellsitter').setup {
 ## Non-Goals
 
 * Support external spellchecker backends.
+
+[packer.nvim]: https://github.com/wbthomason/packer.nvim
+[nvim-treesitter]: https://github.com/nvim-treesitter/nvim-treesitter
