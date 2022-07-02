@@ -1,3 +1,2 @@
 
-(heading_content) @spell
-(paragraph) @spell
+(inline) @spell
