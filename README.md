@@ -79,6 +79,19 @@ the default settings:
 require('spellsitter').setup {
   -- Whether enabled, can be a list of filetypes, e.g. {'python', 'lua'}
   enable = true,
+  -- Conversely disable spellchecking for a blacklist table of filetypes
+  disable = { 'rust', 'go' },
+  debug = false
+}
+```
+The `disable` option can also take a function. Spellchecking is disabled if this function returns `true` for the given filetype and buffer number.
+
+```lua
+require('spellsitter').setup {
+  enable = true,
+  disable = function(ft, bufnr)
+    return ft == "cpp" and vim.api.nvim_buf_line_count(bufnr) > 50000
+  end,
   debug = false
 }
 ```

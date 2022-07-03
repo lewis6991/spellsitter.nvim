@@ -23,6 +23,7 @@ end
 local ns
 local attached = {}
 local marks = {}
+local spellsitter_group = api.nvim_create_augroup("spellsitter_group", { clear = true })
 
 pcall(require, 'nvim-treesitter.query_predicates')
 
@@ -338,8 +339,38 @@ local function on_win(_, winid, bufnr)
   try_attach(bufnr)
 end
 
+local function create_disable_autocmd()
+  if type(config.disable) == "table" then
+    api.nvim_create_autocmd("FileType", {
+      pattern = config.disable,
+      command = "setlocal nospell",
+      group = spellsitter_group,
+    })
+  elseif type(config.disable) == "function" then
+    api.nvim_create_autocmd("FileType", {
+      pattern = "*",
+      callback = function()
+        local bufnr = api.nvim_get_current_buf()
+        local ft = api.nvim_buf_get_option(bufnr, 'filetype')
+        if config.disable(ft, bufnr) then
+          vim.cmd("setlocal nospell")
+        end
+      end,
+      group = spellsitter_group,
+    })
+  else
+    if config.debug then
+      print("ERROR: disable option expect either a lua table or function")
+    end
+  end
+end
+
 function M.setup(user_config)
   config = vim.tbl_deep_extend('force', config, user_config or {})
+
+  if config.disable then
+    create_disable_autocmd()
+  end
 
   ns = api.nvim_create_namespace('spellsitter')
 
