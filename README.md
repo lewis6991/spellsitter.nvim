@@ -83,6 +83,22 @@ require('spellsitter').setup {
 }
 ```
 
+You can selectively disable spellchecking based on certain criterion by writing custom autocommands using the `setlocal nospell` command in your `init.lua` like this:
+```lua
+local my_augroup = vim.api.nvim_create_augroup("my_augroup", { clear = true })
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "python", "lua" }, -- disable spellchecking for these filetypes
+  command = "setlocal nospell",
+  group = my_augroup,
+})
+vim.api.nvim_create_autocmd("TermOpen", {
+  pattern = "*", -- disable spellchecking in the embeded terminal
+  command = "setlocal nospell",
+  group = my_augroup,
+})
+```
+
 ## Languages Supported
 
 Spellsitter uses several methods for looking for spelling regions:
