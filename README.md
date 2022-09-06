@@ -1,3 +1,10 @@
+# NOTICE:
+
+
+The functionality of this plugin has now been merged into Neovim core as of https://github.com/neovim/neovim/pull/19419 and will be available in the upcoming v0.8 release of Neovim.
+
+This repository will be archived.
+
 # spellsitter.nvim
 
 [![CI](https://github.com/lewis6991/spellsitter.nvim/workflows/CI/badge.svg?branch=master)](https://github.com/lewis6991/spellsitter.nvim/actions?query=workflow%3ACI)
